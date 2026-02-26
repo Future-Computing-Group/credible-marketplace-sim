@@ -619,13 +619,14 @@ stat_expC <- function(raw_df) {
     tibble(rho = NA_real_, p_value = NA_real_)
   }
 
-  # Interaction: k x strategy
+  # Interaction: k x strategy (use agent_pay which has within-cell variance;
+  # price_markup is deterministic and produces zero residual SS)
   interaction <- art_anova(
     per_seed %>%
       filter(k_integrators >= 2) %>%
       mutate(k_factor = factor(k_integrators),
              integrator_strategy = factor(integrator_strategy)),
-    price_markup ~ k_factor * integrator_strategy
+    agent_pay ~ k_factor * integrator_strategy
   )
 
   list(per_strategy = per_strategy, spearman = spearman,
@@ -661,11 +662,12 @@ stat_expD <- function(raw_df) {
   l1_stats <- stat_summary_single_factor(per_seed, "l1_trust", metrics)
   l2_stats <- stat_summary_single_factor(per_seed, "l2_trust", metrics)
 
-  # Interaction: L1 x L2
+  # Interaction: L1 x L2 (use raw welfare which has within-cell variance
+  # from topology/n_agents; welfare_ratio is deterministic per L1xL2 cell)
   interaction <- art_anova(
     per_seed %>% mutate(l1_trust = factor(l1_trust),
                         l2_trust = factor(l2_trust)),
-    welfare_ratio ~ l1_trust * l2_trust
+    welfare ~ l1_trust * l2_trust
   )
 
   list(l1 = l1_stats, l2 = l2_stats, interaction = interaction)
