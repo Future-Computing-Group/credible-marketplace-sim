@@ -1,0 +1,26 @@
+# R session artifacts
+.Rhistory
+.RData
+.Ruserdata
+Rplots.pdf
+
+# targets pipeline cache (regenerate with targets::tar_make())
+_targets/
+
+# generated figures (regenerate with pipeline)
+fig/
+
+# R project files
+.Rproj.user
+*.Rproj
+
+# standalone validation scripts (not part of pipeline)
+validate.R
+validate_quick.R
+
+# OS
+.DS_Store
+
+# Claude Code
+.claude/
+CLAUDE.md
