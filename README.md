@@ -31,12 +31,22 @@ The codebase uses letter codes (A-O). The manuscript uses sequential numbers
 | **D** | 7 | `expD_combined.pdf` | Architecture | T (L1 x L2) | L1 trust x L2 trust x topology x N |
 | **J** | 8 | `expJ_combined.pdf` | Architecture | C x K | Credibility x k_integrators x topology |
 | **L** | 9 | `expL_combined.pdf` | Architecture | D knife-edge | Stake fraction x operator x topology |
+| **L2** | 9 (forward calibration) | `expL2_forward_calibration.pdf` | Architecture | D knife-edge + SDS forward calibration | Stake fraction x tau_audit x topology (regulatory_sds) |
 | **H** | 10 | `expH_combined.pdf` | Robustness | C (adaptive) | Credibility x topology x N (bandit operator) |
 | **I** | 11 | `expI_combined.pdf` | Robustness | C (degradation) | p_broadcast x topology (ghost bidder) |
 | **M** | 12 | `expM_combined.pdf` | Robustness | Agent exit | Credibility x agent_mode x topology |
 | **N** | 13 | `expN_combined.pdf` | Robustness | Markov channel | Channel model x p_stationary x topology |
 | **O** | 14 | `expO_combined.pdf` | Robustness | Non-stat. supply | Capacity model x credibility x topology |
 | **G** | Suppl. | --- | Supplement | Sensitivity | Parameter sweeps x topology |
+
+**Exp L2** is the forward-calibration extension of Exp L (manuscript Exp 9),
+addressing the TEAC Round-1 reviewer concern (RF2 / Issue 1) that the SDS
+theorem's calibration was reverse-engineered. L2 sweeps τ_audit and uses a
+new `regulatory_sds` credibility branch (`R/sim_credibility.R`) that
+implements the SDS hazard `1 - exp(-β·δ)` literally, with canonical penalty
+`C(β,τ) = v̄·n/τ` independent of surplus extracted. This lets the predicted
+threshold τ* = β v̄ n / λ be checked ex-ante against the empirical zero-crossing,
+without the post-hoc amplification factor of the previous calibration.
 
 ## Running
 

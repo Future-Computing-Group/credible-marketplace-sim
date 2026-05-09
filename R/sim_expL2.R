@@ -117,13 +117,20 @@ expL2_run_all <- function(conditions, n_rounds = 100, n_seeds = 5) {
 expL2_aggregate <- function(results,
                             beta = EXPL2_BETA_AUDIT,
                             v_bar = EXPL2_V_BAR,
-                            n_agents = EXPL2_N_AGENTS) {
+                            n_agents = EXPL2_N_AGENTS,
+                            ghost_bid_amplitude = EXPL2_V_BAR * 1.1) {
   ## Per (stake_fraction × dag_type), report:
-  ##   predicted_tau_star     = beta * v_bar * n / lambda  (SDS theorem)
-  ##   empirical_zero_crossing_tau = smallest tau where mean surplus crosses 0
-  ## Mean surplus per tau is averaged over seeds and rounds within a
-  ## (stake, dag, tau) cell; the zero-crossing tau is the smallest tau
-  ## value at which surplus drops to <= 0.
+  ##   predicted_tau_star_sds  = β·v̄·n / λ            (SDS optimal-ε threshold)
+  ##   predicted_tau_zero_fix  = sqrt((1-exp(-β·ε))·v̄·n / (λ·ε))  (fixed-ε threshold)
+  ##   empirical_zero_crossing = smallest τ where mean net surplus turns POSITIVE
+  ##                             (deviation profitable; deterrence breaks)
+  ##
+  ## Two predictions are reported because the simulator's ghost_bidder uses a
+  ## fixed amplitude ε rather than the SDS first-order-optimal ε*. The
+  ## fixed-ε prediction (predicted_tau_zero_fix) is the direct theoretical
+  ## counterpart of the simulator's empirical measurement; the SDS optimal-ε
+  ## threshold (predicted_tau_star_sds) is the manuscript's headline claim
+  ## under operator best-response.
 
   per_tau <- results %>%
     group_by(dag_type, stake_fraction, tau_audit) %>%
@@ -137,14 +144,23 @@ expL2_aggregate <- function(results,
     group_by(dag_type, stake_fraction) %>%
     summarise(
       empirical_zero_crossing_tau = {
-        idx <- which(surplus_mean <= 0)
+        ## Smallest τ where deviation becomes profitable (surplus > 0)
+        idx <- which(surplus_mean > 0)
         if (length(idx) == 0) NA_real_ else min(tau_audit[idx])
       },
       .groups = "drop"
     )
 
+  hazard <- 1 - exp(-beta * ghost_bid_amplitude)
+
   zero_crossings %>%
     mutate(
-      predicted_tau_star = beta * v_bar * n_agents / stake_fraction
+      predicted_tau_star_sds = beta * v_bar * n_agents / stake_fraction,
+      predicted_tau_zero_fix = sqrt(
+        hazard * v_bar * n_agents /
+          (stake_fraction * ghost_bid_amplitude)
+      ),
+      ## Backward-compat alias used in earlier write-ups + plot code
+      predicted_tau_star = predicted_tau_zero_fix
     )
 }
