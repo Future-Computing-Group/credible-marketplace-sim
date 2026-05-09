@@ -178,6 +178,14 @@ enforce_credibility <- function(mechanism, operator_outcome, round,
   if (mechanism$type == "exchange") {
     net_surplus <- operator_outcome$surplus * mechanism$stake_fraction
   }
+  # Under regulatory_sds, operator's per-round retained profit is λ·ε
+  # (stake fraction × extracted amplitude), matching the SDS theorem's
+  # operator payoff U(ε) = λε - C·p(ε). Without this multiplier, the
+  # operator gets the full extracted amplitude regardless of stake,
+  # which decouples the simulation from the SDS theorem's prediction.
+  if (mechanism$type == "regulatory_sds") {
+    net_surplus <- operator_outcome$surplus * mechanism$stake_fraction - penalty_applied
+  }
 
   # ── Per-round logging fields for SDS forward calibration (Exp 9b) ──
   # sigma_p: payment-vector std (the auditor's discrepancy estimator scale)
