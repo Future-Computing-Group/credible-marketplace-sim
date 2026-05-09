@@ -65,7 +65,7 @@ expL2_run_single <- function(condition, n_rounds, seed) {
     dag_type         = condition$dag_type,
     load_level       = 1.0,
     operator_type    = condition$operator,
-    credibility_type = "regulatory",
+    credibility_type = "regulatory_sds",   # Path A: faithful SDS hazard
     credibility_params = list(
       stake_fraction = condition$stake_fraction,
       tau_audit      = condition$tau_audit,

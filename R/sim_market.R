@@ -408,6 +408,13 @@ run_market_round <- function(tasks, env, dag, operator, credibility,
   }
 
   # ── Credibility enforcement ──────────────────────────────────────
+  # Inject SDS-channel parameters (v̄, n) that the regulatory_sds branch
+  # of enforce_credibility() reads to compute the canonical penalty
+  # C(β,τ) = v̄·n/τ. value_support[2] is the bid-prior upper bound v̄;
+  # n is the unique-agent count in the market this round.
+  operator_result$v_bar    <- value_support[2]
+  operator_result$n_agents <- length(unique(tasks$agent_id))
+
   cred_result <- enforce_credibility(
     credibility, operator_result, round,
     broadcast_prices = broadcast_prices

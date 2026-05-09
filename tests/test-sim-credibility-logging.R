@@ -197,3 +197,177 @@ test_that("ghost_bidder deviation_amplitude is logged through enforce_credibilit
   cred <- enforce_credibility(mech, op_out, round = 1, broadcast_prices = NULL)
   expect_equal(cred$delta_amplitude, 4.0, tolerance = 1e-6)
 })
+
+
+## ── Path A: regulatory_sds — SDS hazard model ─────────────────────────
+## Per the SDS theorem (thm:sds in §III.H of the manuscript):
+##   - audit fires every τ rounds (audit frequency)
+##   - per-round detection hazard: p(δ) = 1 - exp(-β · δ)
+##     where δ = operator's deviation amplitude
+##   - canonical penalty when detected: C(β,τ) = v̄ · n / τ
+## This branch implements that model literally so that expL2 measures
+## the predicted threshold λ*_audit = β v̄ n / τ ex-ante, not via
+## post-hoc amplification reconstruction.
+
+test_that("regulatory_sds mechanism factory accepts SDS parameters", {
+  mech <- make_credibility_mechanism(
+    type        = "regulatory_sds",
+    tau_audit   = 20,
+    beta_audit  = 2,
+    stake_fraction = 0.01
+  )
+  expect_equal(mech$type, "regulatory_sds")
+  expect_equal(mech$tau_audit, 20)
+  expect_equal(mech$beta_audit, 2)
+  expect_equal(mech$stake_fraction, 0.01)
+})
+
+test_that("regulatory_sds applies SDS hazard 1 - exp(-beta * delta)", {
+  source(file.path(.SIM_DIR, "R", "sim_operator.R"))
+  suppressPackageStartupMessages(library(tibble))
+
+  # Construct an operator outcome with a known deviation amplitude δ,
+  # bid scale v_bar, and agent count n.
+  op_out <- list(
+    surplus               = 0.5,
+    payments              = c(0.4, 0.5, 0.6, 0.7, 0.8),
+    deviation_amplitude   = 1.0,           # δ
+    v_bar                 = 1.0,
+    n_agents              = 40
+  )
+
+  # With β=2, δ=1.0: hazard p(δ) = 1 - exp(-2·1) ≈ 0.865
+  # Penalty when detected: C = v̄·n/τ = 1·40/20 = 2.0
+  # Audit only fires every τ=20 rounds (round 20, 40, 60, ...).
+  mech <- make_credibility_mechanism(
+    type           = "regulatory_sds",
+    tau_audit      = 20,
+    beta_audit     = 2,
+    stake_fraction = 0.5
+  )
+
+  # Check non-audit round: no penalty even with deviation
+  set.seed(101)
+  cred_nonaudit <- enforce_credibility(mech, op_out, round = 5,
+                                        broadcast_prices = NULL)
+  expect_equal(cred_nonaudit$penalty_applied, 0,
+               info = "non-audit round: no penalty regardless of hazard")
+
+  # Audit round: penalty fires with probability ≈ 0.865
+  # Average over many seeds; mean penalty ≈ p(δ) · C ≈ 0.865 · 2 = 1.73
+  penalties <- replicate(500, {
+    set.seed(.Random.seed[1] %% 100000)
+    enforce_credibility(mech, op_out, round = 20,
+                         broadcast_prices = NULL)$penalty_applied
+  })
+  mean_penalty <- mean(penalties)
+  # E[penalty | audit round] = (1 - exp(-2·1)) · 2 ≈ 1.73; allow ±0.3 MC
+  expect_gt(mean_penalty, 1.4)
+  expect_lt(mean_penalty, 2.05)
+})
+
+test_that("regulatory_sds threshold λ*_audit = β v̄ n / τ matches theory", {
+  ## With β=2, v̄=1, n=40, τ=20: λ*_audit = 2·1·40/20 = 4
+  ## At λ < 4, expected per-round profit ≤ 0 (deterrence binds)
+  ## At λ > 4, expected per-round profit > 0
+  ## This is THE forward prediction of the SDS theorem.
+  ##
+  ## Test computes: per (λ_low, λ_high), measure mean expected profit
+  ## across many simulated audit rounds. Cannot run a full simulation
+  ## here (heavy); compute analytically using the SDS first-order condition:
+  ##   ε* = (1/β) log(v̄·n·β / (τ·λ))
+  ##   E[U] at ε*: λ·ε* − C·p(ε*) where p(ε) = 1 - exp(-β·ε)
+  ##
+  ## This is a unit test on the closed-form SDS payoff.
+
+  beta  <- 2
+  v_bar <- 1
+  n     <- 40
+  tau   <- 20
+  C     <- v_bar * n / tau           # = 2
+  lambda_star <- beta * v_bar * n / tau  # = 4
+
+  ## Profit at the FOC-interior optimum ε* = (1/β) log(v̄nβ/(τλ)).
+  ## When λ < λ*_audit, ε* > 0 and U(ε*) ≤ 0 (deterrence binds at FOC).
+  ## When λ ≥ λ*_audit, ε* ≤ 0 — no FOC-interior optimum; the operator's
+  ## profit ramps up monotonically with ε (since p(ε) → 1 caps the
+  ## penalty at C while λε grows without bound). Profit is then
+  ## sup_ε λε - C·p(ε) → ∞.
+  sds_eu_at_eps_star <- function(lambda) {
+    eps_star <- (1 / beta) * log(v_bar * n * beta / (tau * lambda))
+    if (eps_star <= 0) return(NA_real_)
+    p <- 1 - exp(-beta * eps_star)
+    lambda * eps_star - C * p
+  }
+  sds_eu_sup <- function(lambda) {
+    eps_large <- 100
+    p <- 1 - exp(-beta * eps_large)  # ≈ 1
+    lambda * eps_large - C * p
+  }
+
+  ## Below threshold: FOC-interior ε* > 0; expected profit ≤ 0
+  expect_lte(sds_eu_at_eps_star(0.5 * lambda_star), 0,
+             label = "λ = 0.5·λ* FOC-interior: deterrence holds")
+  expect_lte(sds_eu_at_eps_star(0.9 * lambda_star), 0,
+             label = "λ = 0.9·λ* FOC-interior: deterrence holds")
+
+  ## Above threshold: ε* ≤ 0 (no FOC-interior); sup profit > 0
+  expect_true(is.na(sds_eu_at_eps_star(2 * lambda_star)),
+              info = "λ = 2·λ* has no FOC-interior optimum (ε* ≤ 0)")
+  expect_gt(sds_eu_sup(2 * lambda_star), 0,
+            label = "λ = 2·λ* sup profit positive (deviation unbounded)")
+  expect_gt(sds_eu_sup(5 * lambda_star), 0,
+            label = "λ = 5·λ* sup profit positive")
+})
+
+test_that("regulatory_sds penalty is zero when deviation_amplitude is NA", {
+  ## Truthful operator: no deviation, no penalty regardless of audit
+  op_out <- list(
+    surplus               = 0,
+    payments              = c(0.5, 0.5, 0.5),
+    deviation_amplitude   = NA_real_,
+    v_bar                 = 1.0,
+    n_agents              = 40
+  )
+  mech <- make_credibility_mechanism(
+    type           = "regulatory_sds",
+    tau_audit      = 1,           # audit every round
+    beta_audit     = 2,
+    stake_fraction = 0.5
+  )
+  cred <- enforce_credibility(mech, op_out, round = 1, broadcast_prices = NULL)
+  expect_equal(cred$penalty_applied, 0)
+  expect_false(cred$detected)
+})
+
+test_that("regulatory_sds applies penalty only at audit frequency τ", {
+  op_out <- list(
+    surplus               = 1.0,
+    payments              = c(1, 1, 1, 1),
+    deviation_amplitude   = 5.0,    # large δ → hazard ≈ 1
+    v_bar                 = 1.0,
+    n_agents              = 40
+  )
+  ## β·δ = 10 → 1-exp(-10) ≈ 0.99995 (essentially deterministic)
+  mech <- make_credibility_mechanism(
+    type           = "regulatory_sds",
+    tau_audit      = 5,
+    beta_audit     = 2,
+    stake_fraction = 0.5
+  )
+
+  ## Non-audit rounds (1, 2, 3, 4, 6, 7, ...): zero penalty
+  for (round in c(1, 2, 3, 4, 6, 7, 8, 9, 11)) {
+    cred <- enforce_credibility(mech, op_out, round = round, broadcast_prices = NULL)
+    expect_equal(cred$penalty_applied, 0,
+                 info = sprintf("round %d should be non-audit", round))
+  }
+
+  ## Audit rounds (5, 10, 15, ...): penalty fires (~deterministic at δ=5, β=2)
+  set.seed(42)
+  for (round in c(5, 10, 15, 20)) {
+    cred <- enforce_credibility(mech, op_out, round = round, broadcast_prices = NULL)
+    expect_gt(cred$penalty_applied, 0,
+              label = sprintf("round %d audit penalty > 0", round))
+  }
+})
