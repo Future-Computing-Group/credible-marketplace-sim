@@ -115,9 +115,9 @@ label_strategy <- c(
 ## ── Figure saving helper ─────────────────────────────────────────
 
 save_fig <- function(p, filename, width = 3.5, height = 2.8, dpi = 300) {
-  dir.create("fig", showWarnings = FALSE, recursive = TRUE)
+  dir.create("figs", showWarnings = FALSE, recursive = TRUE)
   ggsave(
-    filename = file.path("fig", filename),
+    filename = file.path("figs", filename),
     plot     = p,
     width    = width,
     height   = height,

@@ -7,8 +7,6 @@ suppressPackageStartupMessages({
 ## Integrator competition and market power (now with CI)
 
 ## Build C1: Welfare ratio by k integrators (reusable ggplot)
-## Note: welfare = 1.0 for all conditions (markup affects payments, not allocation).
-## This plot is kept for the supplementary; the combined figure uses markup only.
 build_expC_welfare <- function(summary) {
   df <- summary %>%
     filter(load_name == "medium") %>%
@@ -107,6 +105,48 @@ build_expC_price_markup <- function(summary) {
 plot_expC_price_markup <- function(summary) {
   p <- build_expC_price_markup(summary)
   save_fig(p, "expC_price_markup.pdf", width = 7, height = 2.5)
+}
+
+
+## Build C2b: Welfare convergence by k (line plot for combined figure)
+## Topology-averaged (transport cost is topology-invariant).
+## Shows O(1/k) welfare convergence under Salop differentiation.
+build_expC_welfare_convergence <- function(summary) {
+  df <- summary %>%
+    filter(load_name == "medium") %>%
+    mutate(strat_label = label_strategy[integrator_strategy]) %>%
+    group_by(k_integrators, integrator_strategy, strat_label) %>%
+    summarise(
+      welfare_ratio_mean = mean(welfare_ratio_mean, na.rm = TRUE),
+      welfare_ratio_ci_lo = mean(welfare_ratio_ci_lo, na.rm = TRUE),
+      welfare_ratio_ci_hi = mean(welfare_ratio_ci_hi, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    mutate(k_label = factor(k_integrators))
+
+  ggplot(df, aes(x = k_label, y = welfare_ratio_mean,
+                      colour = strat_label, group = strat_label)) +
+    geom_line(linewidth = 0.9) +
+    geom_point(size = 3.5) +
+    geom_errorbar(
+      aes(ymin = welfare_ratio_ci_lo, ymax = welfare_ratio_ci_hi),
+      width = 0.15, linewidth = 0.4
+    ) +
+    geom_hline(yintercept = 1.0, linetype = "dashed",
+               colour = "grey40", linewidth = 0.5) +
+    scale_colour_manual(
+      values = c(Competitive = "#2C7BB6", Collusive = "#D7191C"),
+      name = "Strategy"
+    ) +
+    labs(x = "Number of Integrators (k)",
+         y = "Welfare Ratio") +
+    theme_ieee()
+}
+
+## Fig C2b: Welfare convergence (saved individually)
+plot_expC_welfare_convergence <- function(summary) {
+  p <- build_expC_welfare_convergence(summary)
+  save_fig(p, "expC_welfare_convergence.pdf", width = 7, height = 2.5)
 }
 
 

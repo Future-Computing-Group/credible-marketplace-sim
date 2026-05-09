@@ -15,7 +15,7 @@ suppressPackageStartupMessages({
 #' Panel (b): Welfare ratio by k, coloured by credibility mechanism.
 #'
 #' @param summary  Aggregated summary from expJ_aggregate().
-#' @return ggplot object (also saved to fig/exp9_combined.pdf).
+#' @return ggplot object (also saved to figs/expJ_combined.pdf).
 expJ_plot_combined <- function(summary) {
 
   plot_data <- summary %>%
@@ -64,7 +64,7 @@ expJ_plot_combined <- function(summary) {
   combined <- p_heat / p_pricing +
     plot_layout(heights = c(1, 1))
 
-  save_fig(combined, "exp9_combined.pdf", width = 7, height = 6)
+  save_fig(combined, "expJ_combined.pdf", width = 7, height = 6)
 }
 
 
@@ -120,7 +120,7 @@ expJ_plot_synergy <- function(summary) {
     theme_ieee(base_size = 12) +
     theme(axis.text.x = element_text(size = 9, angle = 15, hjust = 1))
 
-  save_fig(p, "exp9_synergy.pdf", width = 7, height = 3.5)
+  save_fig(p, "expJ_synergy.pdf", width = 7, height = 3.5)
 }
 
 
@@ -155,5 +155,5 @@ expJ_plot_profitability <- function(summary) {
     theme_ieee(base_size = 12) +
     theme(legend.position = "right")
 
-  save_fig(p, "exp9_profitability.pdf", width = 7, height = 3)
+  save_fig(p, "expJ_profitability.pdf", width = 7, height = 3)
 }

@@ -171,6 +171,72 @@ vcg_allocate <- function(tasks, env, dag) {
 }
 
 
+## ── Myerson (revenue-optimal) allocation ──────────────────────────────
+## For single-parameter agents with Uniform(a, b) values:
+##   virtual value φ(v) = 2v − b
+##   optimal reserve   r = b/2
+## Allocation: exclude tasks below reserve, run VCG on eligible set.
+## Payment:  max(reserve, vcg_externality) — the critical bid under the
+##           Myerson allocation rule.
+
+myerson_allocate <- function(tasks, env, dag, value_support = c(1, 2)) {
+  n <- nrow(tasks)
+  if (n == 0) {
+    return(tibble(
+      task_id = character(), agent_id = character(),
+      allocated = logical(), tier = character(),
+      latency = numeric(), realised_value = numeric(),
+      vcg_payment = numeric()
+    ))
+  }
+
+  b <- value_support[2]
+  reserve <- b / 2  # optimal reserve for Uniform(a, b)
+
+  # Apply reserve screen
+  eligible <- tasks$value >= reserve
+
+  if (!any(eligible)) {
+    return(tibble(
+      task_id        = tasks$task_id,
+      agent_id       = as.character(tasks$agent_id),
+      allocated      = FALSE,
+      tier           = NA_character_,
+      latency        = NA_real_,
+      realised_value = 0,
+      vcg_payment    = 0
+    ))
+  }
+
+  # Run VCG on eligible tasks only
+  eligible_tasks <- tasks[eligible, ]
+  vcg_result <- vcg_allocate(eligible_tasks, env, dag)
+
+  # Apply reserve floor to payments (critical bid = max(reserve, externality))
+  vcg_result$vcg_payment <- ifelse(
+    vcg_result$allocated,
+    pmax(vcg_result$vcg_payment, reserve),
+    vcg_result$vcg_payment
+  )
+
+  # Add back excluded tasks (below reserve)
+  if (any(!eligible)) {
+    excluded_result <- tibble(
+      task_id        = tasks$task_id[!eligible],
+      agent_id       = as.character(tasks$agent_id[!eligible]),
+      allocated      = FALSE,
+      tier           = NA_character_,
+      latency        = NA_real_,
+      realised_value = 0,
+      vcg_payment    = 0
+    )
+    vcg_result <- bind_rows(vcg_result, excluded_result)
+  }
+
+  vcg_result
+}
+
+
 ## ── Ascending clinching auction (simplified) ─────────────────────────
 ## Models the public-price ascending mechanism from Theorem 2(i).
 ## Prices rise in clock rounds; allocations ("clinches") occur at
@@ -275,15 +341,19 @@ tatonnement_step <- function(prices, demand, capacity, eta = 0.1) {
 
 run_market_round <- function(tasks, env, dag, operator, credibility,
                              integrator_market = NULL, prices = NULL,
-                             round = 1, eta = 0.1) {
+                             round = 1, eta = 0.1,
+                             mechanism = "vcg", value_support = c(1, 2)) {
 
-  # ── Level 2: VCG allocation ──────────────────────────────────────
+  # ── Level 2: allocation ────────────────────────────────────────
   use_ascending <- (credibility$type == "broadcast")
 
   if (use_ascending) {
     asc_result <- ascending_clinch_allocate(tasks, env, dag)
     allocation <- asc_result$allocation
     broadcast_prices <- asc_result$price_history
+  } else if (mechanism == "myerson") {
+    allocation <- myerson_allocate(tasks, env, dag, value_support = value_support)
+    broadcast_prices <- NULL
   } else {
     allocation <- vcg_allocate(tasks, env, dag)
     broadcast_prices <- NULL
@@ -312,8 +382,9 @@ run_market_round <- function(tasks, env, dag, operator, credibility,
 
   truthful_allocation <- allocation  # save for potential reversion
 
-  if (credibility$type == "exchange") {
-    # Neutral exchange: operator earns only fixed fee, no distortion possible
+  if (credibility$type == "exchange" && credibility$stake_fraction == 0) {
+    # Pure domain separation (Proposition 1): operator earns only fixed fee,
+    # no deviation incentive exists, so no distortion is applied.
     operator_result <- list(
       allocation = allocation,
       payments   = allocation$vcg_payment,
@@ -386,6 +457,7 @@ run_simulation <- function(
   operator_type = "truthful", operator_params = list(),
   credibility_type = "none", credibility_params = list(),
   integrator_k = NULL, integrator_strategy = "competitive",
+  mechanism = "vcg", value_support = c(1, 2),
   seed = 1, eta = 0.1
 ) {
 
@@ -422,11 +494,13 @@ run_simulation <- function(
   for (r in seq_len(n_rounds)) {
     tasks <- generate_tasks(agents, lambda = 1.0,
                             deadlines = c(100, 150, 200),
+                            value_support = value_support,
                             seed = seed * 1000 + r)
 
     round_result <- run_market_round(
       tasks, env, dag, operator, credibility,
-      integrator_market, prices, round = r, eta = eta
+      integrator_market, prices, round = r, eta = eta,
+      mechanism = mechanism, value_support = value_support
     )
 
     prices <- round_result$prices
@@ -453,6 +527,8 @@ run_simulation <- function(
       load_level    = load_level,
       operator_type = operator_type,
       credibility   = credibility_type,
+      mechanism     = mechanism,
+      value_dist    = paste0("U(", value_support[1], ",", value_support[2], ")"),
       k_integrators = integrator_k %||% NA_integer_,
       integrator_strategy = if (!is.null(integrator_k)) integrator_strategy else NA_character_
     )
