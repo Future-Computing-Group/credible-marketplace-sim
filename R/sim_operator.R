@@ -151,7 +151,8 @@ apply_operator_strategy <- function(operator, allocation, payments, env, agents,
       if (nrow(allocated_tasks) == 0) {
         return(list(allocation = allocation, payments = payments,
                     surplus = 0, detectable = FALSE,
-                    ghost_detected = FALSE))
+                    ghost_detected = FALSE,
+                    deviation_amplitude = NA_real_))
       }
 
       # Ghost bid calibrated to displace the marginal allocated task
@@ -159,7 +160,8 @@ apply_operator_strategy <- function(operator, allocation, payments, env, agents,
       if (length(marginal_idx) == 0) {
         return(list(allocation = allocation, payments = payments,
                     surplus = 0, detectable = FALSE,
-                    ghost_detected = FALSE))
+                    ghost_detected = FALSE,
+                    deviation_amplitude = NA_real_))
       }
       marginal_task <- allocation[marginal_idx[length(marginal_idx)], ]
 
@@ -192,13 +194,16 @@ apply_operator_strategy <- function(operator, allocation, payments, env, agents,
       per_agent_consistent <- TRUE
 
       list(
-        allocation      = new_alloc,
-        payments        = new_payments,
-        surplus         = max(0, surplus),
-        detectable      = FALSE,    # sealed-bid: individually undetectable
-        ghost_detected  = FALSE,    # no commitment device
-        ghost_value     = ghost_val,
-        displaced_task  = marginal_task$task_id
+        allocation          = new_alloc,
+        payments            = new_payments,
+        surplus             = max(0, surplus),
+        detectable          = FALSE,    # sealed-bid: individually undetectable
+        ghost_detected      = FALSE,    # no commitment device
+        ghost_value         = ghost_val,
+        displaced_task      = marginal_task$task_id,
+        # SDS forward-calibration logging: amplitude of the operator's
+        # perturbation in valuation space (= ghost-bid magnitude).
+        deviation_amplitude = ghost_val
       )
     }
   )

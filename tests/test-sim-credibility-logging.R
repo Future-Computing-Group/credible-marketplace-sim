@@ -144,3 +144,56 @@ test_that("make_credibility_mechanism beta_audit defaults to NULL", {
               info = "beta_audit must be an explicit named slot, even when NULL")
   expect_null(mech$beta_audit)
 })
+
+## ── Operator-side: ghost_bidder must set deviation_amplitude ───────
+
+test_that("ghost_bidder operator returns deviation_amplitude (= ghost_value)", {
+  source(file.path(.SIM_DIR, "R", "sim_operator.R"))
+  suppressPackageStartupMessages(library(tibble))
+  suppressPackageStartupMessages(library(dplyr))
+
+  set.seed(42)
+  agents <- tibble(agent_id = paste0("a", 1:5))
+  allocation <- tibble(
+    task_id        = paste0("t", 1:5),
+    agent_id       = agents$agent_id,
+    tier           = "T1",
+    realised_value = c(10, 8, 6, 4, 2),
+    allocated      = c(TRUE, TRUE, TRUE, TRUE, TRUE),
+    vcg_payment    = c(2, 2, 2, 2, 2)
+  )
+  payments <- allocation$vcg_payment
+  env <- list(capacity = setNames(c(100), "T1"), tiers = "T1")
+
+  op <- make_operator(type = "ghost_bidder", ghost_value = 3.0, seed = 1)
+  result <- apply_operator_strategy(op, allocation, payments, env, agents,
+                                    dag = NULL)
+
+  expect_true("deviation_amplitude" %in% names(result),
+              info = "ghost_bidder must propagate the ghost-bid amplitude as deviation_amplitude")
+  expect_equal(result$deviation_amplitude, 3.0, tolerance = 1e-6)
+})
+
+test_that("ghost_bidder deviation_amplitude is logged through enforce_credibility", {
+  source(file.path(.SIM_DIR, "R", "sim_operator.R"))
+  suppressPackageStartupMessages(library(tibble))
+
+  set.seed(7)
+  agents <- tibble(agent_id = paste0("a", 1:5))
+  allocation <- tibble(
+    task_id        = paste0("t", 1:5),
+    agent_id       = agents$agent_id,
+    tier           = "T1",
+    realised_value = c(10, 8, 6, 4, 2),
+    allocated      = c(TRUE, TRUE, TRUE, TRUE, TRUE),
+    vcg_payment    = c(2, 2, 2, 2, 2)
+  )
+  env <- list(capacity = setNames(c(100), "T1"), tiers = "T1")
+  op <- make_operator(type = "ghost_bidder", ghost_value = 4.0)
+  op_out <- apply_operator_strategy(op, allocation, allocation$vcg_payment,
+                                    env, agents, dag = NULL)
+
+  mech <- make_credibility_mechanism(type = "exchange", stake_fraction = 0.01)
+  cred <- enforce_credibility(mech, op_out, round = 1, broadcast_prices = NULL)
+  expect_equal(cred$delta_amplitude, 4.0, tolerance = 1e-6)
+})
