@@ -16,18 +16,27 @@ competition (K), two-tier architecture (T), and structural topology (S).
 
 ## Experiments
 
-| Code | Paper | Component(s) | What varies | Key metrics |
-|------|-------|--------------|-------------|-------------|
-| **A** | Exp 1 | Baseline | Operator strategy x topology x load | Welfare loss, surplus extraction |
-| **E** | Exp 2 | +C | Credibility x topology x N (ghost bidder) | Ghost surplus, detection rate |
-| **B** | Exp 3 | C x operator | Credibility x operator x topology x load | Welfare recovery, detection rate |
-| **F** | Exp 4 | +D | Fee mode x operator x topology x load | Surplus, welfare (domain separation) |
-| **C** | Exp 5 | +K | k integrators x strategy x topology x load | Price markup, welfare |
-| **D** | Exp 6 | T (L1 x L2) | L1 trust x L2 trust x topology x N | End-to-end welfare, compliance |
-| **H** | Exp 7 | C (adaptive) | Credibility x topology x N (bandit operator) | Converged arm, cumulative surplus |
-| **I** | Exp 8 | C (degradation) | p_broadcast x topology (ghost bidder) | Profitability threshold, welfare |
-| **J** | Exp 9 | C x K | Credibility x k_integrators x topology | Orthogonality, surplus, pricing |
-| **G** | Suppl. | --- | Parameter sweeps x topology | Sensitivity analysis |
+The codebase uses letter codes (A-O). The manuscript uses sequential numbers
+(1-14) grouped by purpose. Combined figure files use letter codes
+(`expA_combined.pdf`, etc.).
+
+| Code | Manu. | Figure file | Group | Component(s) | What varies |
+|------|-------|-------------|-------|--------------|-------------|
+| **A** | 1 | `expA_combined.pdf` | Trilemma | Baseline | Operator strategy x topology x load |
+| **E** | 2 | `expE_combined.pdf` | Trilemma | +C | Credibility x topology x N (ghost bidder) |
+| **K** | 3 | `expK_combined.pdf` | Trilemma | +M (Myerson) | Mechanism x credibility x value dist |
+| **B** | 4 | `expB_combined.pdf` | Resolution | C comparison | Credibility x operator x topology x load |
+| **F** | 5 | `expF_combined.pdf` | Resolution | +D | Fee mode x operator x topology x load |
+| **C** | 6 | `expC_combined.pdf` | Resolution | +K | k integrators x strategy x topology x load |
+| **D** | 7 | `expD_combined.pdf` | Architecture | T (L1 x L2) | L1 trust x L2 trust x topology x N |
+| **J** | 8 | `expJ_combined.pdf` | Architecture | C x K | Credibility x k_integrators x topology |
+| **L** | 9 | `expL_combined.pdf` | Architecture | D knife-edge | Stake fraction x operator x topology |
+| **H** | 10 | `expH_combined.pdf` | Robustness | C (adaptive) | Credibility x topology x N (bandit operator) |
+| **I** | 11 | `expI_combined.pdf` | Robustness | C (degradation) | p_broadcast x topology (ghost bidder) |
+| **M** | 12 | `expM_combined.pdf` | Robustness | Agent exit | Credibility x agent_mode x topology |
+| **N** | 13 | `expN_combined.pdf` | Robustness | Markov channel | Channel model x p_stationary x topology |
+| **O** | 14 | `expO_combined.pdf` | Robustness | Non-stat. supply | Capacity model x credibility x topology |
+| **G** | Suppl. | --- | Supplement | Sensitivity | Parameter sweeps x topology |
 
 ## Running
 
@@ -69,7 +78,7 @@ install.packages("ARTool")
 ## File structure
 
 ```
-_targets.R              # pipeline definition (10 experiments + stats)
+_targets.R              # pipeline definition (14 experiments + stats)
 R/
   sim_helpers.R          # shared: DAG topologies, environment, agents, tasks
   sim_market.R           # two-tier marketplace engine: VCG + tatonnement
@@ -81,29 +90,25 @@ R/
                          #   collusive
   stat_analysis.R        # statistical analysis: BCa bootstrap, KW,
                          #   Wilcoxon+Holm, Cliff's delta, ART ANOVA
-  sim_expA.R             # Exp A (Paper 1): welfare loss
-  sim_expB.R             # Exp B (Paper 3): credibility comparison
-  sim_expC.R             # Exp C (Paper 5): integrator competition
-  sim_expD.R             # Exp D (Paper 6): two-tier trust
-  sim_expE.R             # Exp E (Paper 2): credibility trilemma
-  sim_expF.R             # Exp F (Paper 4): domain separation
+  sim_expA.R             # Exp A (Manu. 1): welfare loss
+  sim_expB.R             # Exp B (Manu. 4): credibility comparison
+  sim_expC.R             # Exp C (Manu. 6): integrator competition
+  sim_expD.R             # Exp D (Manu. 7): two-tier trust
+  sim_expE.R             # Exp E (Manu. 2): credibility trilemma
+  sim_expF.R             # Exp F (Manu. 5): domain separation
   sim_expG.R             # Exp G (Suppl.): sensitivity analysis
-  sim_expH.R             # Exp H (Paper 7): adaptive operator
-  sim_expI.R             # Exp I (Paper 8): imperfect broadcast
-  sim_expJ.R             # Exp J (Paper 9): credibility x competition
+  sim_expH.R             # Exp H (Manu. 10): adaptive operator
+  sim_expI.R             # Exp I (Manu. 11): imperfect broadcast
+  sim_expJ.R             # Exp J (Manu. 8): credibility x competition
+  sim_expK.R             # Exp K (Manu. 3): revenue-optimal (Myerson)
+  sim_expL.R             # Exp L (Manu. 9): domain sep. knife-edge
+  sim_expM.R             # Exp M (Manu. 12): strategic agent adaptation
+  sim_expN.R             # Exp N (Manu. 13): Markov broadcast channel
+  sim_expO.R             # Exp O (Manu. 14): non-stationary supply
   plot_helpers.R         # shared: theme_ieee, palettes, save_fig
-  plots_combined.R       # combined main-paper figures (Exps 1-9)
-  plots_expA.R           # Exp A figures
-  plots_expB.R           # Exp B figures
-  plots_expC.R           # Exp C figures
-  plots_expD.R           # Exp D figures
-  plots_expE.R           # Exp E figures
-  plots_expF.R           # Exp F figures
-  plots_expG.R           # Exp G figures
-  plots_expH.R           # Exp H figures
-  plots_expI.R           # Exp I figures
-  plots_expJ.R           # Exp J figures
-fig/                     # generated figures (PDF, gitignored)
+  plots_combined.R       # combined figures for Exps A-I (Manu. 1-2, 4-6, 10-11)
+  plots_expA.R ... plots_expO.R   # per-experiment figure functions
+figs/                    # generated figures (PDF, gitignored)
 _targets/                # pipeline cache (gitignored)
 ```
 
