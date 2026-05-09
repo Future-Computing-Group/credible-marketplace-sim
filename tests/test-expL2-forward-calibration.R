@@ -75,12 +75,23 @@ test_that("expL2_aggregate computes predicted and empirical tau_star per conditi
                     topologies      = c("tree"))
   results <- expL2_run_all(d, n_rounds = 5, n_seeds = 1)
   agg <- expL2_aggregate(results)
-  expect_true("predicted_tau_star" %in% names(agg))
+  expect_true("predicted_tau_star_sds" %in% names(agg))
+  expect_true("predicted_tau_zero_fix" %in% names(agg))
   expect_true("empirical_zero_crossing_tau" %in% names(agg))
-  # predicted_tau_star = beta * v_bar * n / lambda
+  # predicted_tau_star_sds = β·v̄·n/λ  (SDS optimal-ε* threshold)
   # With default beta=2, v_bar=1, n=40, lambda=0.01 → 8000
-  expect_equal(unique(agg$predicted_tau_star), 2 * 1 * 40 / 0.01,
+  expect_equal(unique(agg$predicted_tau_star_sds), 2 * 1 * 40 / 0.01,
                tolerance = 1e-6)
+  # predicted_tau_zero_fix = sqrt((1 - exp(-β·ε)) v̄·n / (λ·ε))
+  # With ε = 1.1 v̄ (default ghost-bid amplitude), λ = 0.01:
+  #   = sqrt((1 - exp(-2 × 1.1)) × 1 × 40 / (0.01 × 1.1))
+  #   ≈ sqrt(0.8892 × 40 / 0.011)
+  #   ≈ 56.9
+  expect_equal(
+    unique(agg$predicted_tau_zero_fix),
+    sqrt((1 - exp(-2 * 1.1)) * 1 * 40 / (0.01 * 1.1)),
+    tolerance = 1e-3
+  )
 })
 
 test_that("expL2_aggregate preserves grouping by stake_fraction × dag_type", {
