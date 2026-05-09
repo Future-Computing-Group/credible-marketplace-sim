@@ -245,18 +245,6 @@ list(
   tar_target(expL_fig_combined, plot_expL_combined(expL_summary)),
 
   # ================================================================
-  # Experiment L2: SDS Forward Calibration (TEAC RF2/Issue 1)
-  # — Exp 9 forward-calibration extension. Parallel to expL,
-  #   adds tau_audit dimension and ghost_bidder-only sweep.
-  # ================================================================
-  tar_target(expL2_conditions, expL2_design()),
-  tar_target(
-    expL2_results_raw,
-    expL2_run_all(expL2_conditions, n_rounds, n_seeds)
-  ),
-  tar_target(expL2_summary, expL2_aggregate(expL2_results_raw)),
-
-  # ================================================================
   # Experiment M: Strategic Agent Adaptation (robustness)
   # ================================================================
   tar_target(
