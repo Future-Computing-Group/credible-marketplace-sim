@@ -25,23 +25,27 @@ suppressPackageStartupMessages({
 
 make_credibility_mechanism <- function(
   type = c("none", "broadcast", "blockchain", "exchange", "regulatory"),
-  tau_audit  = 5,      # audit delay in rounds (blockchain)
-  p_detect   = 0.6,    # detection probability (regulatory)
-  penalty    = 10.0,   # penalty multiplier for detected deviation
-  fee        = 0.01,   # per-transaction fee (exchange)
-  deposit    = 5.0,    # operator deposit amount (blockchain)
-  slash_rate = 0.5     # fraction of deposit slashed on detection (blockchain)
+  tau_audit       = 5,      # audit delay in rounds (blockchain) / audit frequency (regulatory + SDS)
+  p_detect        = 0.6,    # detection probability (regulatory)
+  penalty         = 10.0,   # penalty multiplier for detected deviation
+  fee             = 0.01,   # per-transaction fee (exchange)
+  deposit         = 5.0,    # operator deposit amount (blockchain)
+  slash_rate      = 0.5,    # fraction of deposit slashed on detection (blockchain)
+  stake_fraction  = 0.0,    # ownership stake fraction (exchange); 0 = pure domain separation
+  beta_audit      = NULL    # detection sensitivity (W / sigma_p) for SDS theorem
 ) {
   type <- match.arg(type)
 
   list(
-    type       = type,
-    tau_audit  = tau_audit,
-    p_detect   = p_detect,
-    penalty    = penalty,
-    fee        = fee,
-    deposit    = deposit,
-    slash_rate = slash_rate,
+    type            = type,
+    tau_audit       = tau_audit,
+    p_detect        = p_detect,
+    penalty         = penalty,
+    fee             = fee,
+    deposit         = deposit,
+    slash_rate      = slash_rate,
+    stake_fraction  = stake_fraction,
+    beta_audit      = beta_audit,
     # Accumulator for blockchain DRA: stores committed rules and outcomes
     committed_rule  = NULL,
     audit_buffer    = list()
@@ -134,15 +138,53 @@ enforce_credibility <- function(mechanism, operator_outcome, round,
   )
 
   net_surplus <- operator_outcome$surplus - penalty_applied
-  # Under exchange, operator surplus is replaced by fee income
+  # Under exchange, operator surplus depends on ownership stake.
+  # At stake_fraction = 0 (pure domain separation, Proposition 1): surplus = 0.
+  # At stake_fraction > 0: operator retains a proportional share of surplus,
+  # breaking the credibility guarantee (knife-edge of Proposition 1).
   if (mechanism$type == "exchange") {
-    net_surplus <- 0  # no surplus extraction possible
+    net_surplus <- operator_outcome$surplus * mechanism$stake_fraction
+  }
+
+  # ── Per-round logging fields for SDS forward calibration (Exp 9b) ──
+  # sigma_p: payment-vector std (the auditor's discrepancy estimator scale)
+  sigma_p <- if (!is.null(operator_outcome$payments) &&
+                 length(operator_outcome$payments) > 1) {
+    sd(operator_outcome$payments, na.rm = TRUE)
+  } else {
+    NA_real_
+  }
+
+  # delta_amplitude: actual deviation amplitude chosen by the operator
+  delta_amplitude <- operator_outcome$deviation_amplitude %||% NA_real_
+
+  # epsilon_star: SDS first-order optimal deviation amplitude
+  #   epsilon_star = (1/beta) * log(v_bar * n * beta / (tau * lambda))
+  # Requires audit channel parameters (tau_audit, beta_audit) and stake > 0.
+  epsilon_star <- NA_real_
+  if (!is.null(mechanism$tau_audit) &&
+      !is.null(mechanism$beta_audit) &&
+      !is.null(operator_outcome$v_bar) &&
+      !is.null(operator_outcome$n_agents) &&
+      isTRUE(mechanism$stake_fraction > 0)) {
+    beta   <- mechanism$beta_audit
+    tau    <- mechanism$tau_audit
+    v_bar  <- operator_outcome$v_bar
+    n      <- operator_outcome$n_agents
+    lambda <- mechanism$stake_fraction
+    arg <- v_bar * n * beta / (tau * lambda)
+    if (is.finite(arg) && arg > 0) {
+      epsilon_star <- (1 / beta) * log(arg)
+    }
   }
 
   list(
     detected            = detected,
     penalty_applied     = penalty_applied,
     latency_overhead    = latency_overhead,
-    net_operator_surplus = net_surplus
+    net_operator_surplus = net_surplus,
+    sigma_p             = sigma_p,
+    delta_amplitude     = delta_amplitude,
+    epsilon_star        = epsilon_star
   )
 }
