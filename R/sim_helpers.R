@@ -65,7 +65,7 @@ make_agents <- function(n_agents, seed = 1) {
 ## ── Tasks ───────────────────────────────────────────────────────────
 
 generate_tasks <- function(agents, lambda = 1.0, deadlines = c(100, 150, 200),
-                           seed = NULL) {
+                           value_support = c(1, 2), seed = NULL) {
   if (!is.null(seed)) set.seed(seed)
   n <- nrow(agents)
   n_tasks <- rpois(n, lambda)
@@ -75,7 +75,7 @@ generate_tasks <- function(agents, lambda = 1.0, deadlines = c(100, 150, 200),
     tibble(
       agent_id = aid,
       task_id  = paste0(aid, "_", seq_len(nt)),
-      value    = runif(nt, 1, 2),
+      value    = runif(nt, value_support[1], value_support[2]),
       deadline = sample(deadlines, nt, replace = TRUE),
       lambda_l = 0.005
     )

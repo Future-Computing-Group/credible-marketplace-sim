@@ -10,10 +10,9 @@ suppressPackageStartupMessages({
 ## ── Experiment C: Integrator competition and market power ─────────
 ##
 ## Varies: k integrators × integrator strategy × DAG topology × load
-## Now includes active agent choice among integrators to drive
-## Bertrand convergence (Proposition 2).
-## Key metrics: slice prices (vs competitive benchmark), welfare,
-##              agent surplus, integrator profit
+## Uses Salop circular-city model (Proposition 2) with transport cost
+## to produce endogenous markup O(1/k) and welfare loss O(1/k).
+## Key metrics: slice prices, welfare, exclusion rate, agent surplus
 
 expC_design <- function(
   topologies       = c("tree", "sp", "entangled"),
@@ -49,7 +48,7 @@ expC_design <- function(
 }
 
 
-## Custom run function that implements agent choice among integrators
+## Custom run function with Salop circular-city integrator model
 expC_run_single <- function(condition, n_rounds, n_agents, seed) {
   set.seed(seed)
 
@@ -59,8 +58,9 @@ expC_run_single <- function(condition, n_rounds, n_agents, seed) {
   env$capacity <- env$capacity / condition$load_level
 
   int_market <- make_integrator_market(
-    k = condition$k,
-    strategy = condition$strategy
+    k              = condition$k,
+    strategy       = condition$strategy,
+    transport_cost = 0.75
   )
 
   prices  <- NULL
@@ -73,7 +73,9 @@ expC_run_single <- function(condition, n_rounds, n_agents, seed) {
 
     if (nrow(tasks) == 0) {
       history[[r]] <- tibble(
-        round = r, welfare = 0, drop_rate = 1,
+        round = r, welfare = 0, welfare_raw = 0,
+        transport_cost_total = 0, exclusion_rate = 1,
+        drop_rate = 1,
         operator_surplus = 0, penalty_applied = 0,
         net_op_surplus = 0, latency_overhead = 0,
         slice_price_adj = 0, mean_price = 0, price_sd = 0,
@@ -82,6 +84,9 @@ expC_run_single <- function(condition, n_rounds, n_agents, seed) {
       next
     }
 
+    # Assign agent locations on the Salop circle
+    tasks$location <- runif(nrow(tasks), 0, 1)
+
     # Compute integrator prices
     cap_per_int <- min(env$capacity) / int_market$k
     slice_info <- compute_slice_prices(
@@ -89,25 +94,34 @@ expC_run_single <- function(condition, n_rounds, n_agents, seed) {
       capacity_per_integrator = cap_per_int
     )
 
-    # Agent choice among integrators
+    # Agent choice among integrators (Salop model)
     int_cap <- rep(floor(cap_per_int), int_market$k)
-    choices <- agent_choose_integrator(
-      tasks, slice_info$prices_per_integrator, int_cap
+    choice_result <- agent_choose_integrator(
+      tasks, slice_info$prices_per_integrator, int_cap,
+      integrator_market = int_market
     )
 
-    # Tasks that found an integrator proceed to allocation
-    tasks$integrator <- choices
-    served_tasks <- tasks %>% filter(!is.na(integrator))
+    tasks$integrator      <- choice_result$choices
+    tasks$transport_cost  <- choice_result$transport_costs
+
+    served_tasks   <- tasks %>% filter(!is.na(integrator))
     unserved_tasks <- tasks %>% filter(is.na(integrator))
 
     # Run allocation on served tasks
-    allocation <- vcg_allocate(served_tasks, env, dag)
+    if (nrow(served_tasks) > 0) {
+      allocation <- vcg_allocate(served_tasks, env, dag)
+      allocation <- allocation %>%
+        mutate(realised_value = realised_value * int_market$efficiency)
+    } else {
+      allocation <- tibble(
+        task_id = character(0), agent_id = character(0),
+        allocated = logical(0), tier = character(0),
+        latency = numeric(0), realised_value = numeric(0),
+        vcg_payment = numeric(0)
+      )
+    }
 
-    # Apply integrator efficiency
-    allocation <- allocation %>%
-      mutate(realised_value = realised_value * int_market$efficiency)
-
-    # Add unserved tasks
+    # Add unserved tasks (excluded by Salop or no capacity)
     if (nrow(unserved_tasks) > 0) {
       unserved_alloc <- tibble(
         task_id        = unserved_tasks$task_id,
@@ -134,7 +148,13 @@ expC_run_single <- function(condition, n_rounds, n_agents, seed) {
     prices <- tatonnement_step(prices, demand_per_tier, env$capacity)
 
     utilisation <- demand_per_tier / env$capacity
-    welfare <- compute_welfare(allocation, utilisation = utilisation)
+    welfare_raw <- compute_welfare(allocation, utilisation = utilisation)
+
+    # Net welfare: subtract transport costs incurred by served agents
+    served_transport <- sum(served_tasks$transport_cost, na.rm = TRUE)
+    welfare <- welfare_raw - served_transport
+
+    exclusion_rate <- mean(is.na(tasks$integrator))
 
     # Agent payment = VCG payment + integrator slice markup per allocated task
     alloc_tasks  <- allocation %>% filter(allocated)
@@ -145,19 +165,22 @@ expC_run_single <- function(condition, n_rounds, n_agents, seed) {
     } else 0
 
     history[[r]] <- tibble(
-      round              = r,
-      welfare            = welfare,
-      drop_rate          = mean(!allocation$allocated),
-      operator_surplus   = 0,
-      penalty_applied    = 0,
-      net_op_surplus     = 0,
-      latency_overhead   = 0,
-      slice_price_adj    = slice_price_adj,
-      mean_price         = mean(prices),
-      price_sd           = sd(prices),
-      n_tasks            = nrow(tasks),
-      n_allocated        = sum(allocation$allocated),
-      mean_agent_payment = mean_agent_payment
+      round                = r,
+      welfare              = welfare,
+      welfare_raw          = welfare_raw,
+      transport_cost_total = served_transport,
+      exclusion_rate       = exclusion_rate,
+      drop_rate            = mean(!allocation$allocated),
+      operator_surplus     = 0,
+      penalty_applied      = 0,
+      net_op_surplus       = 0,
+      latency_overhead     = 0,
+      slice_price_adj      = slice_price_adj,
+      mean_price           = mean(prices),
+      price_sd             = sd(prices),
+      n_tasks              = nrow(tasks),
+      n_allocated          = sum(allocation$allocated),
+      mean_agent_payment   = mean_agent_payment
     )
   }
 
@@ -207,6 +230,8 @@ expC_aggregate <- function(results) {
       mean_price      = mean(mean_price, na.rm = TRUE),
       price_vol       = mean(price_sd, na.rm = TRUE),
       mean_agent_pay  = mean(mean_agent_payment, na.rm = TRUE),
+      mean_exclusion  = mean(exclusion_rate, na.rm = TRUE),
+      mean_transport  = mean(transport_cost_total, na.rm = TRUE),
       .groups = "drop"
     ) %>%
     left_join(competitive_bench,
@@ -223,6 +248,8 @@ expC_aggregate <- function(results) {
       price_markup_mean    = mean(price_markup, na.rm = TRUE),
       agent_payment_mean   = mean(mean_agent_pay, na.rm = TRUE),
       drop_rate_mean       = mean(mean_drop_rate, na.rm = TRUE),
+      exclusion_mean       = mean(mean_exclusion, na.rm = TRUE),
+      transport_mean       = mean(mean_transport, na.rm = TRUE),
       n_obs                = n(),
       .groups = "drop"
     ) %>%

@@ -20,7 +20,7 @@ plot_exp1_combined <- function(summary) {
     plot_layout(widths = c(1, 1)) +
     plot_annotation(tag_levels = "a", theme = theme(plot.tag = element_text(size = 16, face = "bold")))
 
-  save_fig(combined, "exp1_combined.pdf", width = 7, height = 3.8)
+  save_fig(combined, "expA_combined.pdf", width = 7, height = 3.8)
 }
 
 
@@ -35,7 +35,7 @@ plot_exp2_combined <- function(summary) {
     plot_layout(widths = c(2, 1)) +
     plot_annotation(tag_levels = "a", theme = theme(plot.tag = element_text(size = 16, face = "bold")))
 
-  save_fig(combined, "exp2_combined.pdf", width = 7, height = 4.5)
+  save_fig(combined, "expE_combined.pdf", width = 7, height = 4.5)
 }
 
 
@@ -50,7 +50,7 @@ plot_exp3_combined <- function(summary) {
     plot_layout(heights = c(2, 1)) +
     plot_annotation(tag_levels = "a", theme = theme(plot.tag = element_text(size = 16, face = "bold")))
 
-  save_fig(combined, "exp3_combined.pdf", width = 7, height = 8)
+  save_fig(combined, "expB_combined.pdf", width = 7, height = 8)
 }
 
 
@@ -64,19 +64,25 @@ plot_exp4_combined <- function(summary) {
   combined <- (p1 / p2) +
     plot_annotation(tag_levels = "a", theme = theme(plot.tag = element_text(size = 16, face = "bold")))
 
-  save_fig(combined, "exp4_combined.pdf", width = 7, height = 6)
+  save_fig(combined, "expF_combined.pdf", width = 7, height = 6)
 }
 
 
-## Exp 5 (sim code C): Price markup by k (single panel)
-## Markup is the key differentiating metric; welfare = 1.0 for all conditions
-## (noted in caption) and agent payment is proportional to markup.
-## Full-width single panel for readability at font size 14.
+## Exp 5 (sim code C): Integrator competition (two panels)
+## (a) Price markup convergence O(1/k)
+## (b) Welfare convergence O(1/k) under Salop differentiation
 plot_exp5_combined <- function(summary) {
-  p <- build_expC_price_markup(summary) +
+  p1 <- build_expC_price_markup(summary) +
     labs(title = NULL)
+  p2 <- build_expC_welfare_convergence(summary) +
+    labs(title = NULL) +
+    guides(colour = "none")
 
-  save_fig(p, "exp5_combined.pdf", width = 7, height = 2.5)
+  combined <- (p1 | p2) +
+    plot_annotation(tag_levels = "a",
+                    theme = theme(plot.tag = element_text(size = 16, face = "bold")))
+
+  save_fig(combined, "expC_combined.pdf", width = 7, height = 3.0)
 }
 
 
@@ -90,7 +96,7 @@ plot_exp6_combined <- function(summary) {
   combined <- (p1 / p2) +
     plot_annotation(tag_levels = "a", theme = theme(plot.tag = element_text(size = 16, face = "bold")))
 
-  save_fig(combined, "exp6_combined.pdf", width = 7, height = 6.5)
+  save_fig(combined, "expD_combined.pdf", width = 7, height = 6.5)
 }
 
 
@@ -110,7 +116,7 @@ plot_exp7_combined <- function(agg) {
   combined <- (p1 / p2) +
     plot_annotation(tag_levels = "a", theme = theme(plot.tag = element_text(size = 16, face = "bold")))
 
-  save_fig(combined, "exp7_combined.pdf", width = 7, height = 6)
+  save_fig(combined, "expH_combined.pdf", width = 7, height = 6)
 }
 
 
@@ -125,5 +131,5 @@ plot_exp8_combined <- function(agg) {
   combined <- (p1 / p2) +
     plot_annotation(tag_levels = "a", theme = theme(plot.tag = element_text(size = 16, face = "bold")))
 
-  save_fig(combined, "exp8_combined.pdf", width = 7, height = 5.5)
+  save_fig(combined, "expI_combined.pdf", width = 7, height = 5.5)
 }

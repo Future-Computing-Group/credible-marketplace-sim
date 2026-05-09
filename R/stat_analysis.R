@@ -584,6 +584,7 @@ stat_expC <- function(raw_df) {
       welfare       = mean(welfare, na.rm = TRUE),
       slice_adj     = mean(slice_price_adj, na.rm = TRUE),
       agent_pay     = mean(mean_agent_payment, na.rm = TRUE),
+      exclusion     = mean(exclusion_rate, na.rm = TRUE),
       .groups = "drop"
     ) %>%
     left_join(baselines, by = c("dag_type", "load_level", "seed")) %>%
@@ -592,7 +593,7 @@ stat_expC <- function(raw_df) {
       price_markup  = slice_adj / pmax(bench_price, 0.01)
     )
 
-  metrics <- c("welfare_ratio", "price_markup", "agent_pay")
+  metrics <- c("welfare_ratio", "price_markup", "agent_pay", "exclusion")
 
   # Per strategy: k effect (medium load)
   by_strat <- per_seed %>%
@@ -602,16 +603,15 @@ stat_expC <- function(raw_df) {
     setNames(., sapply(., function(d) d$integrator_strategy[1]))
 
   per_strategy <- lapply(by_strat, function(d) {
-    # k_integrators as factor for group comparisons
     d$k_factor <- factor(d$k_integrators)
     stat_summary_single_factor(d, "k_factor", metrics)
   })
 
-  # Spearman correlation: k vs price_markup (competitive only)
+  # Spearman correlations: k vs price_markup and k vs welfare_ratio
   comp_data <- per_seed %>%
     filter(integrator_strategy == "competitive", load_level == 1.0)
 
-  spearman <- if (nrow(comp_data) >= 3) {
+  spearman_markup <- if (nrow(comp_data) >= 3) {
     ct <- cor.test(comp_data$k_integrators, comp_data$price_markup,
                    method = "spearman", exact = FALSE)
     tibble(rho = ct$estimate, p_value = ct$p.value)
@@ -619,17 +619,27 @@ stat_expC <- function(raw_df) {
     tibble(rho = NA_real_, p_value = NA_real_)
   }
 
-  # Interaction: k x strategy (use agent_pay which has within-cell variance;
-  # price_markup is deterministic and produces zero residual SS)
+  spearman_welfare <- if (nrow(comp_data) >= 3) {
+    ct <- cor.test(comp_data$k_integrators, comp_data$welfare_ratio,
+                   method = "spearman", exact = FALSE)
+    tibble(rho = ct$estimate, p_value = ct$p.value)
+  } else {
+    tibble(rho = NA_real_, p_value = NA_real_)
+  }
+
+  # Interaction: k x strategy on welfare_ratio (now has within-cell variance
+  # from Salop transport-cost stochasticity)
   interaction <- art_anova(
     per_seed %>%
       filter(k_integrators >= 2) %>%
       mutate(k_factor = factor(k_integrators),
              integrator_strategy = factor(integrator_strategy)),
-    agent_pay ~ k_factor * integrator_strategy
+    welfare_ratio ~ k_factor * integrator_strategy
   )
 
-  list(per_strategy = per_strategy, spearman = spearman,
+  list(per_strategy = per_strategy,
+       spearman_markup = spearman_markup,
+       spearman_welfare = spearman_welfare,
        interaction = interaction)
 }
 
