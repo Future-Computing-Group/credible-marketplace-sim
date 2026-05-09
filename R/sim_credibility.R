@@ -24,7 +24,7 @@ suppressPackageStartupMessages({
 ##                 governance authority with limited resources
 
 make_credibility_mechanism <- function(
-  type = c("none", "broadcast", "blockchain", "exchange", "regulatory"),
+  type = c("none", "broadcast", "blockchain", "exchange", "regulatory", "regulatory_sds"),
   tau_audit       = 5,      # audit delay in rounds (blockchain) / audit frequency (regulatory + SDS)
   p_detect        = 0.6,    # detection probability (regulatory)
   penalty         = 10.0,   # penalty multiplier for detected deviation
@@ -132,6 +132,39 @@ enforce_credibility <- function(mechanism, operator_outcome, round,
       if (operator_outcome$surplus > 0 && runif(1) < mechanism$p_detect) {
         detected <- TRUE
         penalty_applied <- operator_outcome$surplus * mechanism$penalty
+      }
+      latency_overhead <- 0
+    },
+
+    regulatory_sds = {
+      # SDS-hazard audit channel (faithful implementation of §III.H of
+      # the manuscript). Differs from `regulatory` in three ways:
+      #   1. Audit fires every τ rounds (deterministic frequency), not
+      #      i.i.d. probability per round.
+      #   2. Detection hazard at audit is 1 - exp(-β·δ) where δ is the
+      #      operator's per-round deviation amplitude.
+      #   3. Penalty when detected is the canonical SDS penalty
+      #      C(β,τ) = v̄·n/τ — independent of the surplus actually
+      #      extracted. (The penalty is what the auditor commits to, not
+      #      a function of what they discover ex post.)
+      # This branch enables the forward calibration of λ*_audit = β·v̄·n/τ
+      # in Exp 9b (sim_expL2).
+      delta <- operator_outcome$deviation_amplitude
+      v_bar <- operator_outcome$v_bar %||% NA_real_
+      n     <- operator_outcome$n_agents %||% NA_real_
+      tau   <- mechanism$tau_audit
+      beta  <- mechanism$beta_audit
+      audit_round <- (round %% tau == 0)
+      if (audit_round &&
+          !is.null(delta) && !is.na(delta) && delta > 0 &&
+          !is.na(v_bar) && !is.na(n) &&
+          !is.null(beta)) {
+        hazard <- 1 - exp(-beta * delta)
+        if (runif(1) < hazard) {
+          detected <- TRUE
+          # Canonical SDS penalty C(β, τ) = v̄·n/τ; independent of surplus.
+          penalty_applied <- v_bar * n / tau
+        }
       }
       latency_overhead <- 0
     }
