@@ -1,5 +1,6 @@
 ## _targets.R — Trustworthy Marketplace Architecture simulation pipeline
 ## IEEE TSC companion paper
+## Experiments A-L (confirmatory ablation) + M-O (robustness)
 
 library(targets)
 
@@ -53,6 +54,7 @@ list(
   tar_target(expA_fig_welfare, plot_expA_welfare(expA_summary)),
   tar_target(expA_fig_welfare_by_load, plot_expA_welfare_by_load(expA_summary)),
   tar_target(expA_fig_surplus, plot_expA_surplus(expA_summary)),
+  tar_target(expA_fig_combined, plot_exp1_combined(expA_summary)),
 
   # ================================================================
   # Experiment B: Credibility mechanisms comparison
@@ -74,6 +76,7 @@ list(
              plot_expB_welfare_recovery(expB_summary)),
   tar_target(expB_fig_tradeoff, plot_expB_tradeoff(expB_summary)),
   tar_target(expB_fig_detection, plot_expB_detection(expB_summary)),
+  tar_target(expB_fig_combined, plot_exp3_combined(expB_summary)),
 
   # ================================================================
   # Experiment C: Integrator competition (with agent choice)
@@ -91,8 +94,11 @@ list(
   tar_target(expC_summary, expC_aggregate(expC_results_raw)),
   tar_target(expC_fig_welfare, plot_expC_welfare(expC_summary)),
   tar_target(expC_fig_price_markup, plot_expC_price_markup(expC_summary)),
+  tar_target(expC_fig_welfare_convergence,
+             plot_expC_welfare_convergence(expC_summary)),
   tar_target(expC_fig_welfare_by_load,
              plot_expC_welfare_by_load(expC_summary)),
+  tar_target(expC_fig_combined, plot_exp5_combined(expC_summary)),
 
   # ================================================================
   # Experiment D: Two-tier heterogeneous trust (with L2 operator)
@@ -111,6 +117,7 @@ list(
   tar_target(expD_fig_heatmap, plot_expD_heatmap(expD_summary)),
   tar_target(expD_fig_frontier, plot_expD_frontier(expD_summary)),
   tar_target(expD_fig_scaling, plot_expD_scaling(expD_summary)),
+  tar_target(expD_fig_combined, plot_exp6_combined(expD_summary)),
 
   # ================================================================
   # Experiment E: Credibility Trilemma Demonstration (Theorem 1)
@@ -128,6 +135,7 @@ list(
   tar_target(expE_fig_trilemma, plot_expE_trilemma(expE_summary)),
   tar_target(expE_fig_detection, plot_expE_detection_vs_profit(expE_summary)),
   tar_target(expE_fig_scaling, plot_expE_scaling(expE_summary)),
+  tar_target(expE_fig_combined, plot_exp2_combined(expE_summary)),
 
   # ================================================================
   # Experiment F: Domain Separation Validation (Proposition 1)
@@ -145,6 +153,7 @@ list(
   tar_target(expF_summary, expF_aggregate(expF_results_raw)),
   tar_target(expF_fig_surplus, plot_expF_surplus(expF_summary)),
   tar_target(expF_fig_welfare, plot_expF_welfare(expF_summary)),
+  tar_target(expF_fig_combined, plot_exp4_combined(expF_summary)),
 
   # ================================================================
   # Experiment G: Sensitivity Analysis (supplementary)
@@ -176,6 +185,7 @@ list(
   tar_target(expH_fig_deviation, plot_expH_deviation(expH_summary)),
   tar_target(expH_fig_surplus, plot_expH_surplus(expH_summary)),
   tar_target(expH_fig_converged, plot_expH_converged(expH_summary)),
+  tar_target(expH_fig_combined, plot_exp7_combined(expH_summary)),
 
   # ================================================================
   # Experiment I: Imperfect Broadcast (Credibility Degradation)
@@ -192,6 +202,7 @@ list(
   tar_target(expI_summary, expI_aggregate(expI_results_raw)),
   tar_target(expI_fig_welfare, plot_expI_welfare(expI_summary)),
   tar_target(expI_fig_surplus, plot_expI_surplus(expI_summary)),
+  tar_target(expI_fig_combined, plot_exp8_combined(expI_summary)),
 
   # ================================================================
   # Experiment J: Credibility x Competition Interaction
@@ -209,6 +220,89 @@ list(
   tar_target(expJ_summary, expJ_aggregate(expJ_results_raw)),
   tar_target(expJ_fig_synergy, expJ_plot_synergy(expJ_summary)),
   tar_target(expJ_fig_profitability, expJ_plot_profitability(expJ_summary)),
+  tar_target(expJ_fig_combined, expJ_plot_combined(expJ_summary)),
+
+  # ================================================================
+  # Experiment K: Revenue-Optimal (Myerson) Mechanism (Theorem 1)
+  # ================================================================
+  tar_target(expK_conditions, expK_design()),
+  tar_target(
+    expK_results_raw,
+    expK_run_all(expK_conditions, n_rounds, n_seeds)
+  ),
+  tar_target(expK_summary, expK_aggregate(expK_results_raw)),
+  tar_target(expK_fig_combined, plot_expK_combined(expK_summary)),
+
+  # ================================================================
+  # Experiment L: Domain Separation Knife-Edge (Proposition 1)
+  # ================================================================
+  tar_target(expL_conditions, expL_design()),
+  tar_target(
+    expL_results_raw,
+    expL_run_all(expL_conditions, n_rounds, n_seeds)
+  ),
+  tar_target(expL_summary, expL_aggregate(expL_results_raw)),
+  tar_target(expL_fig_combined, plot_expL_combined(expL_summary)),
+
+  # ================================================================
+  # Experiment L2: SDS Forward Calibration (TEAC RF2/Issue 1)
+  # — Exp 9 forward-calibration extension. Parallel to expL,
+  #   adds tau_audit dimension and ghost_bidder-only sweep.
+  # ================================================================
+  tar_target(expL2_conditions, expL2_design()),
+  tar_target(
+    expL2_results_raw,
+    expL2_run_all(expL2_conditions, n_rounds, n_seeds)
+  ),
+  tar_target(expL2_summary, expL2_aggregate(expL2_results_raw)),
+
+  # ================================================================
+  # Experiment M: Strategic Agent Adaptation (robustness)
+  # ================================================================
+  tar_target(
+    expM_conditions,
+    expM_design(topologies,
+                cred_types  = c("none", "broadcast", "exchange"),
+                agent_modes = c("passive", "exit_sensitive"))
+  ),
+  tar_target(
+    expM_results_raw,
+    expM_run_all(expM_conditions, n_rounds, n_agents_default, n_seeds)
+  ),
+  tar_target(expM_summary, expM_aggregate(expM_results_raw)),
+  tar_target(expM_fig_combined, plot_expM_combined(expM_summary)),
+
+  # ================================================================
+  # Experiment N: Markov Broadcast Channel (robustness)
+  # ================================================================
+  tar_target(
+    expN_conditions,
+    expN_design(topologies,
+                channel_models    = c("iid", "markov_low", "markov_med", "markov_high"),
+                p_stationary_vals = c(0.3, 0.5, 0.7))
+  ),
+  tar_target(
+    expN_results_raw,
+    expN_run_all(expN_conditions, n_rounds, n_agents_default, n_seeds)
+  ),
+  tar_target(expN_summary, expN_aggregate(expN_results_raw)),
+  tar_target(expN_fig_combined, plot_expN_combined(expN_summary)),
+
+  # ================================================================
+  # Experiment O: Non-Stationary Supply (robustness)
+  # ================================================================
+  tar_target(
+    expO_conditions,
+    expO_design(topologies,
+                capacity_models = c("static", "cyclic", "shock"),
+                cred_types      = c("none", "broadcast", "exchange"))
+  ),
+  tar_target(
+    expO_results_raw,
+    expO_run_all(expO_conditions, n_rounds, n_agents_default, n_seeds)
+  ),
+  tar_target(expO_summary, expO_aggregate(expO_results_raw)),
+  tar_target(expO_fig_combined, plot_expO_combined(expO_summary)),
 
   # ================================================================
   # Experiment L2: SDS Forward Calibration (TEAC RF2/Issue 1)
@@ -235,17 +329,17 @@ list(
   tar_target(stats_expH, stat_expH(expH_results_raw)),
   tar_target(stats_expI, stat_expI(expI_results_raw)),
   tar_target(stats_expJ, stat_expJ(expJ_results_raw)),
+  tar_target(stats_expK, stat_expK(expK_results_raw)),
+  tar_target(stats_expL, stat_expL(expL_results_raw)),
+  tar_target(stats_expM, stat_expM(expM_results_raw)),
+  tar_target(stats_expN, stat_expN(expN_results_raw)),
+  tar_target(stats_expO, stat_expO(expO_results_raw)),
 
   # ================================================================
-  # Combined figures for main paper (Experiments 1-9)
+  # NOTE: Combined figure targets (expX_fig_combined) are defined
+  # near each experiment's data and individual-figure targets above.
+  # Output files use code letters (expA_combined.pdf, etc.)
+  # See README.md for the letter → manuscript number mapping.
   # ================================================================
-  tar_target(exp1_combined, plot_exp1_combined(expA_summary)),
-  tar_target(exp2_combined, plot_exp2_combined(expE_summary)),
-  tar_target(exp3_combined, plot_exp3_combined(expB_summary)),
-  tar_target(exp4_combined, plot_exp4_combined(expF_summary)),
-  tar_target(exp5_combined, plot_exp5_combined(expC_summary)),
-  tar_target(exp6_combined, plot_exp6_combined(expD_summary)),
-  tar_target(exp7_combined, plot_exp7_combined(expH_summary)),
-  tar_target(exp8_combined, plot_exp8_combined(expI_summary)),
-  tar_target(exp9_combined, expJ_plot_combined(expJ_summary))
+  NULL  # sentinel — keeps the trailing comma valid
 )
