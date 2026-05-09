@@ -211,6 +211,19 @@ list(
   tar_target(expJ_fig_profitability, expJ_plot_profitability(expJ_summary)),
 
   # ================================================================
+  # Experiment L2: SDS Forward Calibration (TEAC RF2/Issue 1)
+  # — Exp 9 forward-calibration extension. Adds tau_audit dimension
+  #   and ghost_bidder-only sweep on top of the original Exp 9
+  #   stake × topology design. See R/sim_expL2.R for design details.
+  # ================================================================
+  tar_target(expL2_conditions, expL2_design()),
+  tar_target(
+    expL2_results_raw,
+    expL2_run_all(expL2_conditions, n_rounds, n_seeds)
+  ),
+  tar_target(expL2_summary, expL2_aggregate(expL2_results_raw)),
+
+  # ================================================================
   # Statistical analysis (all experiments)
   # ================================================================
   tar_target(stats_expA, stat_expA(expA_results_raw)),
