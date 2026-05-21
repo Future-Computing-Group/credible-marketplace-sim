@@ -237,6 +237,83 @@ myerson_allocate <- function(tasks, env, dag, value_support = c(1, 2)) {
 }
 
 
+## ── Posted-price allocation ──────────────────────────────────────────
+## Operator posts a per-tier price p_post. Agents participate iff
+## value > p_post. Allocation among participants is the standard Edmonds
+## greedy on the polymatroid. Payments = p_post per allocated task.
+## This is a non-DSIC, no-externality mechanism; the manuscript uses it
+## as a CoNC^op contrast point against VCG.
+
+posted_price_allocate <- function(tasks, env, dag, p_post = 0.5) {
+  if (nrow(tasks) == 0) {
+    return(tibble(
+      task_id = character(), agent_id = character(),
+      allocated = logical(), tier = character(),
+      latency = numeric(), realised_value = numeric(),
+      vcg_payment = numeric()
+    ))
+  }
+
+  ## Screen by posted price: only tasks with value > p_post participate
+  participates <- tasks$value > p_post
+  if (!any(participates)) {
+    return(tibble(
+      task_id        = tasks$task_id,
+      agent_id       = as.character(tasks$agent_id),
+      allocated      = FALSE,
+      tier           = NA_character_,
+      latency        = NA_real_,
+      realised_value = 0,
+      vcg_payment    = 0
+    ))
+  }
+
+  participating_tasks <- tasks[participates, ]
+  ## Edmonds greedy allocation among participants
+  alloc_part <- greedy_allocate(participating_tasks, env$capacity, dag, env)
+  ## Posted-price: payment = p_post for each allocated task
+  alloc_part$vcg_payment <- ifelse(alloc_part$allocated, p_post, 0)
+
+  ## Add back excluded (below-price) tasks as unallocated
+  if (any(!participates)) {
+    excluded <- tibble(
+      task_id        = tasks$task_id[!participates],
+      agent_id       = as.character(tasks$agent_id[!participates]),
+      allocated      = FALSE,
+      tier           = NA_character_,
+      latency        = NA_real_,
+      realised_value = 0,
+      vcg_payment    = 0
+    )
+    out <- bind_rows(alloc_part, excluded)
+  } else {
+    out <- alloc_part
+  }
+  out
+}
+
+## ── First-price allocation ───────────────────────────────────────────
+## Same Edmonds greedy allocation as VCG, but payment[i] = bid[i]
+## (= realised_value under truth-telling). Not DSIC, but a textbook
+## auction baseline. The trilemma's ghost-bid mechanism still applies
+## because allocation is bid-greedy.
+
+first_price_allocate <- function(tasks, env, dag) {
+  if (nrow(tasks) == 0) {
+    return(tibble(
+      task_id = character(), agent_id = character(),
+      allocated = logical(), tier = character(),
+      latency = numeric(), realised_value = numeric(),
+      vcg_payment = numeric()
+    ))
+  }
+  tasks <- tasks[order(-tasks$value / tasks$deadline), ]
+  alloc <- greedy_allocate(tasks, env$capacity, dag, env)
+  ## payment = bid = realised_value for allocated agents (truth-telling)
+  alloc$vcg_payment <- ifelse(alloc$allocated, alloc$realised_value, 0)
+  alloc
+}
+
 ## ── Ascending clinching auction (simplified) ─────────────────────────
 ## Models the public-price ascending mechanism from Theorem 2(i).
 ## Prices rise in clock rounds; allocations ("clinches") occur at
@@ -354,6 +431,13 @@ run_market_round <- function(tasks, env, dag, operator, credibility,
   } else if (mechanism == "myerson") {
     allocation <- myerson_allocate(tasks, env, dag, value_support = value_support)
     broadcast_prices <- NULL
+  } else if (mechanism == "posted_price") {
+    p_post <- operator$p_post %||% 0.5
+    allocation <- posted_price_allocate(tasks, env, dag, p_post = p_post)
+    broadcast_prices <- NULL
+  } else if (mechanism == "first_price") {
+    allocation <- first_price_allocate(tasks, env, dag)
+    broadcast_prices <- NULL
   } else {
     allocation <- vcg_allocate(tasks, env, dag)
     broadcast_prices <- NULL
@@ -393,6 +477,15 @@ run_market_round <- function(tasks, env, dag, operator, credibility,
     )
   } else {
     payments <- allocation$vcg_payment
+    ## Inject credibility-state parameters (λ, τ, β, v̄, n) onto the operator
+    ## so adaptive adversaries (ghost_bidder_foc) can compute their per-round
+    ## response. Constant adversaries ignore these fields.
+    operator$current_lambda <- credibility$stake_fraction %||% NA_real_
+    operator$current_tau    <- credibility$tau_audit      %||% NA_real_
+    operator$current_beta   <- credibility$beta_audit     %||% NA_real_
+    operator$current_v_bar  <- value_support[2]
+    operator$current_n      <- length(unique(tasks$agent_id))
+
     operator_result <- apply_operator_strategy(
       operator, allocation, payments, env,
       tibble(agent_id = unique(tasks$agent_id)),
@@ -449,6 +542,8 @@ run_market_round <- function(tasks, env, dag, operator, credibility,
     welfare         = welfare,
     prices          = new_prices,
     operator_surplus = operator_result$surplus,
+    deviation_amplitude = operator_result$deviation_amplitude %||% NA_real_,
+    n_bids          = length(unique(tasks$agent_id)),
     cred_result     = cred_result,
     slice_price_adj = slice_price_adj,
     utilisation     = utilisation,
@@ -465,7 +560,7 @@ run_simulation <- function(
   credibility_type = "none", credibility_params = list(),
   integrator_k = NULL, integrator_strategy = "competitive",
   mechanism = "vcg", value_support = c(1, 2),
-  seed = 1, eta = 0.1
+  seed = 1, eta = 0.1, force_all_active = FALSE
 ) {
 
   set.seed(seed)
@@ -477,8 +572,9 @@ run_simulation <- function(
   # Scale capacity by load level
   env$capacity <- env$capacity / load_level
 
-  # Operator
-  op_args <- c(list(type = operator_type), operator_params)
+  # Operator — propagate v_max from value_support unless caller overrides
+  op_defaults <- list(type = operator_type, v_max = value_support[2])
+  op_args <- modifyList(op_defaults, operator_params)
   operator <- do.call(make_operator, op_args)
 
   # Credibility mechanism
@@ -502,7 +598,8 @@ run_simulation <- function(
     tasks <- generate_tasks(agents, lambda = 1.0,
                             deadlines = c(100, 150, 200),
                             value_support = value_support,
-                            seed = seed * 1000 + r)
+                            seed = seed * 1000 + r,
+                            force_all_active = force_all_active)
 
     round_result <- run_market_round(
       tasks, env, dag, operator, credibility,
@@ -516,6 +613,8 @@ run_simulation <- function(
       welfare          = round_result$welfare,
       drop_rate        = round_result$drop_rate,
       operator_surplus = round_result$operator_surplus,
+      deviation_amplitude = round_result$deviation_amplitude,
+      n_bids           = round_result$n_bids,
       penalty_applied  = round_result$cred_result$penalty_applied,
       net_op_surplus   = round_result$cred_result$net_operator_surplus,
       latency_overhead = round_result$cred_result$latency_overhead,

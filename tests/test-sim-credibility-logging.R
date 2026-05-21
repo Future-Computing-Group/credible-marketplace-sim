@@ -238,7 +238,10 @@ test_that("regulatory_sds applies SDS hazard 1 - exp(-beta * delta)", {
 
   # With β=2, δ=1.0: hazard p(δ) = 1 - exp(-2·1) ≈ 0.865
   # Penalty when detected: C = v̄·n/τ = 1·40/20 = 2.0
-  # Audit only fires every τ=20 rounds (round 20, 40, 60, ...).
+  # Audits fire at average rate 1/τ (Bernoulli per round; assumption A3),
+  # so the per-round UNCONDITIONAL mean penalty is (1/τ)·p(δ)·C =
+  # p(δ)·v̄·n/τ² = 0.865·40/400 ≈ 0.0865, and on any firing round the
+  # penalty equals exactly C = 2.0.
   mech <- make_credibility_mechanism(
     type           = "regulatory_sds",
     tau_audit      = 20,
@@ -246,24 +249,23 @@ test_that("regulatory_sds applies SDS hazard 1 - exp(-beta * delta)", {
     stake_fraction = 0.5
   )
 
-  # Check non-audit round: no penalty even with deviation
   set.seed(101)
-  cred_nonaudit <- enforce_credibility(mech, op_out, round = 5,
-                                        broadcast_prices = NULL)
-  expect_equal(cred_nonaudit$penalty_applied, 0,
-               info = "non-audit round: no penalty regardless of hazard")
+  N <- 20000
+  penalties <- vapply(seq_len(N), function(r)
+    enforce_credibility(mech, op_out, round = r, broadcast_prices = NULL)$penalty_applied,
+    numeric(1))
 
-  # Audit round: penalty fires with probability ≈ 0.865
-  # Average over many seeds; mean penalty ≈ p(δ) · C ≈ 0.865 · 2 = 1.73
-  penalties <- replicate(500, {
-    set.seed(.Random.seed[1] %% 100000)
-    enforce_credibility(mech, op_out, round = 20,
-                         broadcast_prices = NULL)$penalty_applied
-  })
-  mean_penalty <- mean(penalties)
-  # E[penalty | audit round] = (1 - exp(-2·1)) · 2 ≈ 1.73; allow ±0.3 MC
-  expect_gt(mean_penalty, 1.4)
-  expect_lt(mean_penalty, 2.05)
+  ## (a) Unconditional per-round mean penalty → p(δ)·v̄·n/τ² (closed-form loss).
+  expected_loss <- (1 - exp(-2 * 1.0)) * 1.0 * 40 / (20^2)
+  expect_equal(mean(penalties), expected_loss, tolerance = 0.10)
+
+  ## (b) Every firing round pays exactly the canonical penalty C = v̄·n/τ = 2.0.
+  fired <- penalties[penalties > 0]
+  expect_true(length(fired) > 0)
+  expect_true(all(abs(fired - 2.0) < 1e-9))
+
+  ## (c) Audit-firing rate ≈ 1/τ × p(δ) detections per round (firing == detection here).
+  expect_equal(length(fired) / N, (1 / 20) * (1 - exp(-2 * 1.0)), tolerance = 0.10)
 })
 
 test_that("regulatory_sds threshold λ*_audit = β v̄ n / τ matches theory", {
@@ -340,34 +342,37 @@ test_that("regulatory_sds penalty is zero when deviation_amplitude is NA", {
   expect_false(cred$detected)
 })
 
-test_that("regulatory_sds applies penalty only at audit frequency τ", {
+test_that("regulatory_sds audits at average rate 1/τ (Bernoulli, not deterministic)", {
   op_out <- list(
     surplus               = 1.0,
     payments              = c(1, 1, 1, 1),
-    deviation_amplitude   = 5.0,    # large δ → hazard ≈ 1
+    deviation_amplitude   = 5.0,    # large δ → hazard ≈ 1, so audit ⟹ penalty
     v_bar                 = 1.0,
     n_agents              = 40
   )
-  ## β·δ = 10 → 1-exp(-10) ≈ 0.99995 (essentially deterministic)
+  tau <- 5
   mech <- make_credibility_mechanism(
     type           = "regulatory_sds",
-    tau_audit      = 5,
+    tau_audit      = tau,
     beta_audit     = 2,
     stake_fraction = 0.5
   )
 
-  ## Non-audit rounds (1, 2, 3, 4, 6, 7, ...): zero penalty
-  for (round in c(1, 2, 3, 4, 6, 7, 8, 9, 11)) {
-    cred <- enforce_credibility(mech, op_out, round = round, broadcast_prices = NULL)
-    expect_equal(cred$penalty_applied, 0,
-                 info = sprintf("round %d should be non-audit", round))
-  }
-
-  ## Audit rounds (5, 10, 15, ...): penalty fires (~deterministic at δ=5, β=2)
+  ## Audits fire on a Bernoulli(1/τ) draw each round — no fixed audit rounds.
+  ## Over many rounds the fraction of penalty-firing rounds converges to 1/τ
+  ## (assumption A3); with δ=5, β=2 the per-audit detection hazard ≈ 1, so a
+  ## firing round is essentially equivalent to an audit round.
   set.seed(42)
-  for (round in c(5, 10, 15, 20)) {
+  N <- 20000
+  fired <- 0L
+  penalties <- numeric(0)
+  for (round in seq_len(N)) {
     cred <- enforce_credibility(mech, op_out, round = round, broadcast_prices = NULL)
-    expect_gt(cred$penalty_applied, 0,
-              label = sprintf("round %d audit penalty > 0", round))
+    if (cred$penalty_applied > 0) { fired <- fired + 1L; penalties <- c(penalties, cred$penalty_applied) }
   }
+  empirical_rate <- fired / N
+  ## Average audit rate ≈ 1/τ (within finite-sample tolerance).
+  expect_equal(empirical_rate, 1 / tau, tolerance = 0.05)
+  ## When a penalty fires it equals the canonical SDS penalty C(β,τ)=v̄·n/τ.
+  expect_true(all(abs(penalties - (1.0 * 40 / tau)) < 1e-9))
 })

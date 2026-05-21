@@ -306,6 +306,34 @@ list(
   tar_target(expL2_summary, expL2_aggregate(expL2_results_raw)),
 
   # ================================================================
+  # Experiment L3: Bilinear (λ, η) Surface (Exp 8 in Trilogy 2B)
+  # ================================================================
+  tar_target(expL3_conditions, expL3_design()),
+  tar_target(
+    expL3_results_raw,
+    expL3_run_all(expL3_conditions, n_rounds, n_seeds)
+  ),
+  tar_target(expL3_summary, expL3_aggregate(expL3_results_raw)),
+  tar_target(
+    expL3_plot,
+    save_expL3_plot(expL3_summary, path = "figs/expL3_bilinear_surface.pdf")
+  ),
+
+  # ================================================================
+  # Experiment L4: 3D credibility-deployable surface (Exp 9 in Trilogy 2B)
+  # ================================================================
+  tar_target(expL4_conditions, expL4_design()),
+  tar_target(
+    expL4_results_raw,
+    expL4_run_all(expL4_conditions, n_rounds, n_seeds)
+  ),
+  tar_target(expL4_summary, expL4_aggregate(expL4_results_raw)),
+  tar_target(
+    expL4_plot,
+    save_expL4_plot(expL4_summary, path = "figs/expL4_3d_surface.pdf")
+  ),
+
+  # ================================================================
   # Statistical analysis (all experiments)
   # ================================================================
   tar_target(stats_expA, stat_expA(expA_results_raw)),

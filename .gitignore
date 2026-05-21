@@ -24,3 +24,11 @@ validate_quick.R
 # Claude Code
 .claude/
 CLAUDE.md
+
+# Operations log (campaign reconstruction artefact; never committed)
+OPSLOG.md
+
+# Internal planning / agent artefacts — never committed to the public repo (L73)
+*PLAN*.md
+**/plans/
+docs/superpowers/

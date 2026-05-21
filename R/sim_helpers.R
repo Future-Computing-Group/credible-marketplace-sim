@@ -65,10 +65,19 @@ make_agents <- function(n_agents, seed = 1) {
 ## ── Tasks ───────────────────────────────────────────────────────────
 
 generate_tasks <- function(agents, lambda = 1.0, deadlines = c(100, 150, 200),
-                           value_support = c(1, 2), seed = NULL) {
+                           value_support = c(1, 2), seed = NULL,
+                           force_all_active = FALSE) {
+  ## force_all_active = TRUE makes every agent generate exactly one task per
+  ## round, bypassing Poisson dropout.  Required by the SDS forward-calibration
+  ## experiment where n in the audit-channel formula is the per-round active
+  ## bidder count and must equal the agent pool n.
   if (!is.null(seed)) set.seed(seed)
   n <- nrow(agents)
-  n_tasks <- rpois(n, lambda)
+  if (force_all_active) {
+    n_tasks <- rep(1L, n)
+  } else {
+    n_tasks <- rpois(n, lambda)
+  }
 
   tasks <- map2_dfr(agents$agent_id, n_tasks, function(aid, nt) {
     if (nt == 0) return(tibble())
@@ -122,6 +131,97 @@ compute_welfare <- function(task_outcomes, gamma_c = 0.05, utilisation = NULL) {
     congestion_penalty <- gamma_c * sum(pmax(utilisation - 1, 0)^2)
   }
   total_value - congestion_penalty
+}
+
+
+## ── CoNC variant aggregator ─────────────────────────────────────────
+## Given matched truthful + deviated result tibbles (each with columns
+## `welfare`, `operator_surplus` or `net_op_surplus`), compute the three
+## CoNC variants:
+##   CoNC^op = (E[op_surplus | deviated] - E[op_surplus | truthful]) /
+##              E[welfare | truthful]      (operator-side extraction rate)
+##   CoNC^W  = (E[welfare | truthful] - E[welfare | deviated]) /
+##              E[welfare | truthful]      (welfare-side loss rate)
+##   CoNC^ag = CoNC^W + CoNC^op            (agent-side surplus loss:
+##                                          welfare loss + operator transfer)
+## All three are dimensionless; the manuscript Theorem on CoNC predicts
+## CoNC^ag >= CoNC^op in absolute value (agents bear both the transfer and
+## the DWL).
+
+compute_conc_variants <- function(truthful, deviated) {
+  ## Pick the operator-surplus column flexibly.
+  op_col <- function(df) {
+    if ("net_op_surplus" %in% names(df)) df$net_op_surplus
+    else if ("operator_surplus" %in% names(df)) df$operator_surplus
+    else stop("compute_conc_variants: no operator_surplus column found")
+  }
+  W_truth   <- mean(truthful$welfare, na.rm = TRUE)
+  W_dev     <- mean(deviated$welfare, na.rm = TRUE)
+  op_truth  <- mean(op_col(truthful), na.rm = TRUE)
+  op_dev    <- mean(op_col(deviated), na.rm = TRUE)
+
+  if (!is.finite(W_truth) || W_truth <= 0) {
+    return(list(CoNC_op = NA_real_, CoNC_ag = NA_real_, CoNC_W = NA_real_))
+  }
+  CoNC_op <- (op_dev - op_truth) / W_truth
+  CoNC_W  <- (W_truth - W_dev) / W_truth
+  CoNC_ag <- CoNC_W + CoNC_op
+  list(CoNC_op = CoNC_op, CoNC_ag = CoNC_ag, CoNC_W = CoNC_W)
+}
+
+
+## ── γ_ij distribution extractor ──────────────────────────────────────
+## Polymatroid submodularity gap γ_ij = f({i}) + f({j}) - f({i, j}).
+## We instantiate f as the achievable per-task welfare on the polymatroid:
+## allocating a single task of unit value gives f({i}) = realised_value of
+## a generic task at empty utilisation. The pair-evaluation f({i, j})
+## measures congestion-induced welfare loss when two tasks compete on the
+## critical path. γ measures how submodular the welfare function is.
+##
+## For a generic DAG the gap is bounded by the per-tier capacity slack and
+## the critical-path latency; in the manuscript's CoNC lower bound it
+## appears as a Θ(1) structural quantity.
+
+compute_gamma_distribution <- function(dag, env, n_samples = 100, seed = 1) {
+  set.seed(seed)
+  tiers <- dag$critical_path_tiers
+  tier_demands <- dag$tier_demand[tiers]
+
+  ## Singleton welfare: a single unit-value task allocated at empty load
+  ## yields realised_value = task_value(1, base_latency, deadline, lambda).
+  base_latency <- sum(env$latency[tiers])
+  deadline <- 200  # mid-range deadline from default {100,150,200}
+  lambda_l <- 0.005
+  f_single <- task_value(1.0, base_latency, deadline, lambda_l)
+
+  ## Pair welfare: two tasks competing on the same critical path. Capacity
+  ## is consumed by both. We compute realised welfare for the joint
+  ## allocation drawn from per-sample utilisation: utilisation increases
+  ## by 2*tier_demand/capacity, latency inflates accordingly, realised
+  ## value drops.
+  gamma <- numeric(n_samples)
+  for (s in seq_len(n_samples)) {
+    ## Random scaling: simulate variability in deadline/value pairs across
+    ## an agent population. Both agents in the pair get the same draw.
+    v <- runif(1, 0.5, 1.5)
+    d <- sample(c(100, 150, 200), 1)
+    ## Singleton: utilisation = tier_demand / capacity
+    util_single <- tier_demands / env$capacity[tiers]
+    lat_single  <- compute_critical_path_latency(dag, env,
+                      setNames(util_single, tiers))
+    f_i <- task_value(v, lat_single, d, lambda_l)
+    f_j <- f_i  # symmetric
+
+    ## Pair: utilisation doubled
+    util_pair <- 2 * tier_demands / env$capacity[tiers]
+    lat_pair  <- compute_critical_path_latency(dag, env,
+                   setNames(util_pair, tiers))
+    rv_pair <- task_value(v, lat_pair, d, lambda_l)
+    f_ij <- 2 * rv_pair  # two tasks allocated jointly, each yields rv_pair
+
+    gamma[s] <- (f_i + f_j) - f_ij
+  }
+  gamma
 }
 
 

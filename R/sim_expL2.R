@@ -37,8 +37,8 @@ EXPL2_N_AGENTS    <- 40
 
 
 expL2_design <- function(
-  stake_fractions = c(0.01, 0.05, 0.1, 0.25, 0.5),
-  tau_values      = c(1, 5, 10, 20, 40, 80),
+  stake_fractions = c(0.01, 0.02, 0.05, 0.08, 0.1, 0.15, 0.2, 0.25, 0.35, 0.5),
+  tau_values      = c(1, 2, 3, 4, 5, 8, 12, 16, 20, 28, 40, 56, 80),
   topologies      = c("tree", "sp", "entangled"),
   operators       = c("ghost_bidder")     # SDS theorem applies to ghost-bid attack
 ) {
@@ -71,6 +71,9 @@ expL2_run_single <- function(condition, n_rounds, seed) {
       tau_audit      = condition$tau_audit,
       beta_audit     = EXPL2_BETA_AUDIT
     ),
+    ## Manuscript alignment (closed-form τ_zero assumes Unif[0, v̄=1], n=40 bidders):
+    value_support    = c(0, EXPL2_V_BAR),     # bid prior Unif[0, 1]
+    force_all_active = TRUE,                  # all 40 agents bid each round
     seed             = seed
   )
 
@@ -102,15 +105,28 @@ expL2_run_single <- function(condition, n_rounds, seed) {
 }
 
 
-expL2_run_all <- function(conditions, n_rounds = 100, n_seeds = 5) {
-  results <- pmap_dfr(conditions, function(...) {
-    cond <- tibble(...)
+expL2_run_all <- function(conditions, n_rounds = 100, n_seeds = 5, cores = 1) {
+  ## Each (condition, seed) run calls set.seed(seed) inside run_simulation, so
+  ## results are deterministic regardless of execution order — parallelizing
+  ## across conditions is safe (identical output to the serial path).
+  run_one_condition <- function(i) {
+    cond <- conditions[i, , drop = FALSE]
     map_dfr(seq_len(n_seeds), function(s) {
       expL2_run_single(cond, n_rounds, seed = s) %>%
         mutate(condition_id = cond$condition_id)
     })
-  })
-  results
+  }
+  idx <- seq_len(nrow(conditions))
+  if (cores > 1) {
+    parts <- parallel::mclapply(idx, run_one_condition, mc.cores = cores,
+                                mc.preschedule = FALSE)
+    errs <- vapply(parts, function(p) inherits(p, "try-error"), logical(1))
+    if (any(errs)) stop("expL2_run_all: ", sum(errs), " worker(s) failed; first: ",
+                        conditionMessage(attr(parts[[which(errs)[1]]], "condition")))
+    dplyr::bind_rows(parts)
+  } else {
+    dplyr::bind_rows(lapply(idx, run_one_condition))
+  }
 }
 
 
@@ -144,9 +160,25 @@ expL2_aggregate <- function(results,
     group_by(dag_type, stake_fraction) %>%
     summarise(
       empirical_zero_crossing_tau = {
-        ## Smallest τ where deviation becomes profitable (surplus > 0)
-        idx <- which(surplus_mean > 0)
-        if (length(idx) == 0) NA_real_ else min(tau_audit[idx])
+        ## Log-linear interpolation on (log(τ), surplus): find the τ at which
+        ## surplus crosses zero from negative to positive.  Bracket the first
+        ## sign change (surplus[i] ≤ 0 < surplus[i+1]) and interpolate
+        ## τ_zero = exp( log(τ_i) + (0 - surplus_i)/(surplus_{i+1} - surplus_i)
+        ##                          × (log(τ_{i+1}) - log(τ_i)) ).
+        ## This removes the ~1.16× grid round-up bias of the naive
+        ## min(τ : surplus > 0) upper-bound estimator.
+        s   <- surplus_mean
+        t   <- tau_audit
+        ord <- order(t)
+        s   <- s[ord]; t <- t[ord]
+        crosses <- which(s[-length(s)] <= 0 & s[-1] > 0)
+        if (length(crosses) == 0) {
+          NA_real_
+        } else {
+          i  <- crosses[1]
+          w  <- (0 - s[i]) / (s[i + 1] - s[i])
+          exp(log(t[i]) + w * (log(t[i + 1]) - log(t[i])))
+        }
       },
       .groups = "drop"
     )
