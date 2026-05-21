@@ -139,22 +139,29 @@ enforce_credibility <- function(mechanism, operator_outcome, round,
     regulatory_sds = {
       # SDS-hazard audit channel (faithful implementation of §III.H of
       # the manuscript). Differs from `regulatory` in three ways:
-      #   1. Audit fires every τ rounds (deterministic frequency), not
-      #      i.i.d. probability per round.
+      #   1. Audit fires at average rate 1/τ — a Bernoulli(1/τ) draw each
+      #      round, matching the SDS theorem's assumption A3 ("the auditor
+      #      inspects on average a fraction 1/τ of all rounds") and
+      #      def:audit-channel ("τ is the EXPECTED number of rounds between
+      #      consecutive audits"). The expected per-round penalty is then
+      #      (1/τ)·p(δ)·C(β,τ) = p(δ)·v̄·n/τ², exactly the closed-form loss
+      #      of Theorem 2 — unlike a deterministic every-τ schedule, whose
+      #      realised rate floor(N/τ)/N diverges from 1/τ at finite N.
       #   2. Detection hazard at audit is 1 - exp(-β·δ) where δ is the
       #      operator's per-round deviation amplitude.
       #   3. Penalty when detected is the canonical SDS penalty
       #      C(β,τ) = v̄·n/τ — independent of the surplus actually
       #      extracted. (The penalty is what the auditor commits to, not
       #      a function of what they discover ex post.)
-      # This branch enables the forward calibration of λ*_audit = β·v̄·n/τ
-      # in Exp 9b (sim_expL2).
+      # This branch enables the forward calibration of λ*_audit = β·v̄·n/τ²
+      # in Exp 7 (sim_expL2) and the credibility-deployable surface (Exp 8,
+      # sim_expL3).
       delta <- operator_outcome$deviation_amplitude
       v_bar <- operator_outcome$v_bar %||% NA_real_
       n     <- operator_outcome$n_agents %||% NA_real_
       tau   <- mechanism$tau_audit
       beta  <- mechanism$beta_audit
-      audit_round <- (round %% tau == 0)
+      audit_round <- (runif(1) < 1 / tau)
       if (audit_round &&
           !is.null(delta) && !is.na(delta) && delta > 0 &&
           !is.na(v_bar) && !is.na(n) &&
