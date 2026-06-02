@@ -10,8 +10,13 @@ library(testthat)
 .SIM_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile %||% "."), ".."),
                           mustWork = FALSE)
 if (!dir.exists(file.path(.SIM_DIR, "R"))) {
-  # When test_file() invokes us, the cwd may differ; fall back to a known anchor
-  .SIM_DIR <- "[REPO_ROOT]"
+  # When test_file() invokes us, the cwd may differ; fall back to here::here()
+  # (rprojroot discovery) or the current working directory.
+  .SIM_DIR <- if (requireNamespace("here", quietly = TRUE)) {
+    here::here()
+  } else {
+    normalizePath(".", mustWork = TRUE)
+  }
 }
 
 source(file.path(.SIM_DIR, "R", "sim_credibility.R"))
@@ -78,53 +83,16 @@ test_that("delta_amplitude defaults to NA when field is absent from outcome", {
   expect_true(is.na(result$delta_amplitude))
 })
 
-## ── Task 3: epsilon_star (SDS theorem prediction) ──────────────────
-
-test_that("enforce_credibility computes epsilon_star from SDS theorem", {
-  # epsilon_star = (1/beta) * log(v_bar * n * beta / (tau * lambda))
-  # For lambda = 0.01, n = 40, v_bar = 1, beta = 2, tau = 20:
-  #   log(1 * 40 * 2 / (20 * 0.01)) / 2 = log(400)/2 ≈ 2.99573
-  mech <- make_credibility_mechanism(type            = "regulatory",
-                                     stake_fraction  = 0.01,
-                                     tau_audit       = 20,
-                                     beta_audit      = 2)
-  outcome <- list(
-    surplus             = 0.78,
-    payments            = c(0.5, 0.6, 0.55, 0.7, 0.65),
-    deviation_amplitude = 0.5,
-    v_bar               = 1.0,
-    n_agents            = 40
-  )
-  result <- enforce_credibility(mech, outcome, round = 1, broadcast_prices = NULL)
-
-  expect_true("epsilon_star" %in% names(result))
-  expected_eps_star <- log(1.0 * 40 * 2 / (20 * 0.01)) / 2
-  expect_equal(result$epsilon_star, expected_eps_star, tolerance = 1e-6)
-})
-
-test_that("epsilon_star is NA when audit channel is unset", {
-  mech <- make_credibility_mechanism(type = "exchange", stake_fraction = 0.01)
-  outcome <- list(payments            = c(0.5, 0.6),
-                  surplus             = 0,
-                  deviation_amplitude = 0.1,
-                  v_bar               = 1.0,
-                  n_agents            = 40)
-  result <- enforce_credibility(mech, outcome, round = 1, broadcast_prices = NULL)
-  expect_true("epsilon_star" %in% names(result))
-  expect_true(is.na(result$epsilon_star))
-})
-
-test_that("epsilon_star is NA when stake_fraction is zero (formula undefined)", {
-  mech <- make_credibility_mechanism(type           = "regulatory",
-                                     stake_fraction = 0.0,
-                                     tau_audit      = 20,
-                                     beta_audit     = 2)
-  outcome <- list(payments = c(0.5, 0.6), surplus = 0,
-                  v_bar = 1.0, n_agents = 40)
-  result <- enforce_credibility(mech, outcome, round = 1, broadcast_prices = NULL)
-  expect_true("epsilon_star" %in% names(result))
-  expect_true(is.na(result$epsilon_star))
-})
+## ── Task 3: epsilon_star pin removed ────────────────────────────────
+## Historically, three tests pinned an `epsilon_star` field on
+## enforce_credibility() that was computed from the FOC formula
+## (1/β)·log(v̄·n·β/(τ·λ)). The formula is the interior critical point
+## of the operator's profit Π(ε) under the saturating-hazard channel,
+## and Π''(ε) > 0 makes it a profit *minimum* (the rational adversary
+## plays bang-bang on [0, ε_max], see sim_operator.R::bb_adversary_amplitude
+## and Trilogy 2B Theorem 2 / §SmallestDetectableStake). The field was
+## removed during the repo-sanitization pass; the bang-bang adversary
+## is the canonical rational baseline tested in test-bb-adversary.R.
 
 ## ── Task 3 (b): make_credibility_mechanism stores tau_audit, beta_audit ──
 

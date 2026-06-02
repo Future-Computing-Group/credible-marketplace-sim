@@ -99,6 +99,16 @@ enforce_credibility <- function(mechanism, operator_outcome, round,
       #
       # If operator deviated, the committed rule and revealed outcome
       # are inconsistent, producing slashable evidence.
+      #
+      # NB: this branch uses a *deterministic* every-τ audit schedule —
+      # distinct from the `regulatory_sds` branch below, which models
+      # the SDS audit channel as Bernoulli(1/τ). The two represent
+      # different mechanism classes: DRA's blockchain audit fires at
+      # protocol-defined checkpoints (deterministic), while SDS's
+      # external auditor inspects on average a 1/τ fraction of all
+      # rounds (stochastic; assumption A3 of Theorem 2). The within-
+      # paper experiments do not mix them: Exp 1 uses `blockchain`,
+      # Exps 7-8 use `regulatory_sds`.
 
       if (operator_outcome$surplus > 0) {
         # Deviation creates inconsistency between committed rule and outcome.
@@ -206,25 +216,16 @@ enforce_credibility <- function(mechanism, operator_outcome, round,
   # delta_amplitude: actual deviation amplitude chosen by the operator
   delta_amplitude <- operator_outcome$deviation_amplitude %||% NA_real_
 
-  # epsilon_star: SDS first-order optimal deviation amplitude
-  #   epsilon_star = (1/beta) * log(v_bar * n * beta / (tau * lambda))
-  # Requires audit channel parameters (tau_audit, beta_audit) and stake > 0.
-  epsilon_star <- NA_real_
-  if (!is.null(mechanism$tau_audit) &&
-      !is.null(mechanism$beta_audit) &&
-      !is.null(operator_outcome$v_bar) &&
-      !is.null(operator_outcome$n_agents) &&
-      isTRUE(mechanism$stake_fraction > 0)) {
-    beta   <- mechanism$beta_audit
-    tau    <- mechanism$tau_audit
-    v_bar  <- operator_outcome$v_bar
-    n      <- operator_outcome$n_agents
-    lambda <- mechanism$stake_fraction
-    arg <- v_bar * n * beta / (tau * lambda)
-    if (is.finite(arg) && arg > 0) {
-      epsilon_star <- (1 / beta) * log(arg)
-    }
-  }
+  # Historical note: an `epsilon_star` per-round field used to be computed
+  # here from the FOC formula (1/β)·log(v̄·n·β/(τ·λ)). That formula is the
+  # interior critical point of the operator's profit Π(ε) under the
+  # saturating-hazard channel, but Π(ε) is strictly convex in ε on [0,∞)
+  # (Π'' > 0), so the critical point is a profit *minimum*, not a maximum
+  # — the rational adversary plays bang-bang on [0, ε_max] (see
+  # `sim_operator.R::bb_adversary_amplitude` and Trilogy 2B Theorem 2 /
+  # §SmallestDetectableStake). The dead field was removed during the
+  # repo-sanitization pass; the bang-bang adversary is the canonical
+  # rational baseline.
 
   list(
     detected            = detected,
@@ -232,7 +233,6 @@ enforce_credibility <- function(mechanism, operator_outcome, round,
     latency_overhead    = latency_overhead,
     net_operator_surplus = net_surplus,
     sigma_p             = sigma_p,
-    delta_amplitude     = delta_amplitude,
-    epsilon_star        = epsilon_star
+    delta_amplitude     = delta_amplitude
   )
 }
