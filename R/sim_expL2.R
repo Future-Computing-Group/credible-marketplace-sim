@@ -77,8 +77,8 @@ expL2_run_single <- function(condition, n_rounds, seed) {
     seed             = seed
   )
 
-  ## The SDS per-round fields (sigma_p, delta_amplitude, epsilon_star)
-  ## live in the cred_result object and are not propagated by the current
+  ## The SDS per-round fields (sigma_p, delta_amplitude) live in the
+  ## cred_result object and are not propagated by the current
   ## run_simulation history collector (sim_market.R only writes
   ## net_op_surplus, penalty_applied, latency_overhead).  Compute them
   ## from condition + theory closed-form so the test/aggregation layer
@@ -86,21 +86,20 @@ expL2_run_single <- function(condition, n_rounds, seed) {
   ##
   ## sigma_p:        approximated by the realised price_sd (already logged)
   ## delta_amplitude: nominal ghost-bid amplitude (operator default ~1.1*v_bar)
-  ## epsilon_star:    closed-form from SDS theorem
-  lambda <- condition$stake_fraction
-  tau    <- condition$tau_audit
-  beta   <- EXPL2_BETA_AUDIT
+  ##
+  ## (A historical `epsilon_star` column used the FOC formula
+  ## (1/β)·log(v̄·n·β/(τ·λ)); that formula is the profit *minimum* under
+  ## convex Π(ε), not the rational adversary's optimum. The bang-bang
+  ## adversary on [0, ε_max] is the canonical baseline — see
+  ## `sim_operator.R::bb_adversary_amplitude` and Theorem 2 / §SDS.)
   v_bar  <- EXPL2_V_BAR
-  n      <- EXPL2_N_AGENTS
 
   res %>%
     mutate(
       stake_fraction  = condition$stake_fraction,
       tau_audit       = condition$tau_audit,
       sigma_p         = price_sd,
-      delta_amplitude = v_bar * 1.1,             # nominal ghost-bid magnitude
-      epsilon_star    = (1 / beta) *
-                          log(v_bar * n * beta / (tau * lambda))
+      delta_amplitude = v_bar * 1.1              # nominal ghost-bid magnitude
     )
 }
 
@@ -136,17 +135,30 @@ expL2_aggregate <- function(results,
                             n_agents = EXPL2_N_AGENTS,
                             ghost_bid_amplitude = EXPL2_V_BAR * 1.1) {
   ## Per (stake_fraction × dag_type), report:
-  ##   predicted_tau_star_sds  = β·v̄·n / λ            (SDS optimal-ε threshold)
-  ##   predicted_tau_zero_fix  = sqrt((1-exp(-β·ε))·v̄·n / (λ·ε))  (fixed-ε threshold)
-  ##   empirical_zero_crossing = smallest τ where mean net surplus turns POSITIVE
-  ##                             (deviation profitable; deterrence breaks)
+  ##   predicted_tau_sq_sds_opt = β·v̄·n / λ           (SDS optimal-ε τ² threshold;
+  ##                                                    formerly mis-named
+  ##                                                    predicted_tau_star_sds —
+  ##                                                    it has units of τ², not τ.
+  ##                                                    See note below.)
+  ##   predicted_tau_zero_fix   = sqrt((1-exp(-β·ε))·v̄·n / (λ·ε))  (fixed-ε threshold)
+  ##   empirical_zero_crossing  = smallest τ where mean net surplus turns POSITIVE
+  ##                              (deviation profitable; deterrence breaks)
   ##
   ## Two predictions are reported because the simulator's ghost_bidder uses a
   ## fixed amplitude ε rather than the SDS first-order-optimal ε*. The
   ## fixed-ε prediction (predicted_tau_zero_fix) is the direct theoretical
-  ## counterpart of the simulator's empirical measurement; the SDS optimal-ε
-  ## threshold (predicted_tau_star_sds) is the manuscript's headline claim
-  ## under operator best-response.
+  ## counterpart of the simulator's empirical measurement and the headline
+  ## ratio (empirical/predicted_tau_zero_fix) reported in the manuscript.
+  ##
+  ## Note on `predicted_tau_sq_sds_opt`: the SDS Theorem 2 audit threshold is
+  ##   λ*_audit(τ, β) = β·v̄·n / τ²        (Eq. lambda-audit, SmallestDetectableStake.tex)
+  ## Inverting in τ at fixed λ gives the *critical τ²*:
+  ##   τ²*(λ, β) = β·v̄·n / λ                (NOT τ*; the column reports τ², not τ).
+  ## The previous column name `predicted_tau_star_sds` was dimensionally
+  ## inconsistent (the value is τ², not τ) and assumed the operator played
+  ## the FOC-optimal ε*, which the manuscript abandons in favour of the
+  ## bang-bang adversary (Theorem 2). The rename makes the units explicit
+  ## and prevents a code-reading trap for reviewers.
 
   per_tau <- results %>%
     group_by(dag_type, stake_fraction, tau_audit) %>%
@@ -187,7 +199,9 @@ expL2_aggregate <- function(results,
 
   zero_crossings %>%
     mutate(
-      predicted_tau_star_sds = beta * v_bar * n_agents / stake_fraction,
+      ## τ² critical value from the SDS optimal-ε threshold (units: τ²,
+      ## not τ). See aggregator-header note.
+      predicted_tau_sq_sds_opt = beta * v_bar * n_agents / stake_fraction,
       predicted_tau_zero_fix = sqrt(
         hazard * v_bar * n_agents /
           (stake_fraction * ghost_bid_amplitude)

@@ -6,10 +6,15 @@
 
 library(testthat)
 
+## Locate the repo root portably (see test-expL3-bilinear-surface.R).
 .SIM_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile %||% "."), ".."),
                           mustWork = FALSE)
 if (!dir.exists(file.path(.SIM_DIR, "R"))) {
-  .SIM_DIR <- "[REPO_ROOT]"
+  .SIM_DIR <- if (requireNamespace("here", quietly = TRUE)) {
+    here::here()
+  } else {
+    normalizePath(".", mustWork = TRUE)
+  }
 }
 
 ## Source the simulator stack used by expL2.
@@ -55,19 +60,20 @@ test_that("expL2_design accepts custom dimensions", {
 
 ## ── expL2_run_single ────────────────────────────────────────────────
 
-test_that("expL2_run_single returns per-round logs with sigma_p / delta / epsilon_star", {
+test_that("expL2_run_single returns per-round logs with sigma_p / delta_amplitude", {
   cond <- list(stake_fraction = 0.01, tau_audit = 20,
                operator = "ghost_bidder", dag_type = "tree")
   result <- expL2_run_single(cond, n_rounds = 5, seed = 1)
-  required <- c("sigma_p", "delta_amplitude", "epsilon_star",
+  required <- c("sigma_p", "delta_amplitude",
                 "stake_fraction", "tau_audit")
   expect_true(all(required %in% names(result)),
               info = paste("missing:",
                            paste(setdiff(required, names(result)), collapse = ", ")))
   expect_equal(nrow(result), 5)
-  # epsilon_star is finite for stake > 0 (audit channel active)
-  expect_true(all(is.finite(result$epsilon_star)),
-              info = "epsilon_star must be finite when audit channel is active")
+  ## (A historical `epsilon_star` field was pinned here; it was removed
+  ## during the repo-sanitization pass — the FOC formula it used is a
+  ## profit minimum under convex Π(ε), and the rational adversary is
+  ## bang-bang on [0, ε_max]. See sim_operator.R::bb_adversary_amplitude.)
 })
 
 ## ── expL2_aggregate ─────────────────────────────────────────────────
@@ -78,12 +84,13 @@ test_that("expL2_aggregate computes predicted and empirical tau_star per conditi
                     topologies      = c("tree"))
   results <- expL2_run_all(d, n_rounds = 5, n_seeds = 1)
   agg <- expL2_aggregate(results)
-  expect_true("predicted_tau_star_sds" %in% names(agg))
+  expect_true("predicted_tau_sq_sds_opt" %in% names(agg))
   expect_true("predicted_tau_zero_fix" %in% names(agg))
   expect_true("empirical_zero_crossing_tau" %in% names(agg))
-  # predicted_tau_star_sds = β·v̄·n/λ  (SDS optimal-ε* threshold)
+  # predicted_tau_sq_sds_opt = β·v̄·n/λ  (units: τ², not τ; the inverted
+  # SDS Theorem 2 audit threshold under optimal-ε* operator best-response).
   # With default beta=2, v_bar=1, n=40, lambda=0.01 → 8000
-  expect_equal(unique(agg$predicted_tau_star_sds), 2 * 1 * 40 / 0.01,
+  expect_equal(unique(agg$predicted_tau_sq_sds_opt), 2 * 1 * 40 / 0.01,
                tolerance = 1e-6)
   # predicted_tau_zero_fix = sqrt((1 - exp(-β·ε)) v̄·n / (λ·ε))
   # With ε = 1.1 v̄ (default ghost-bid amplitude), λ = 0.01:
