@@ -7,6 +7,9 @@ Rplots.pdf
 # targets pipeline cache (regenerate with targets::tar_make())
 _targets/
 
+# targets per-machine config (auto-written by tar_config_set / tar_config_get)
+_targets.yaml
+
 # generated figures (regenerate with pipeline)
 fig/
 
