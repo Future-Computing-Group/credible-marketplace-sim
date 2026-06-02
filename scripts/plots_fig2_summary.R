@@ -24,7 +24,18 @@ suppressPackageStartupMessages({
   library(scales)
 })
 
-SIM_DIR <- "[REPO_ROOT]"
+## Locate the repo root portably. Prefers `here::here()` (rprojroot
+## discovery); falls back to the current working directory if `here` is
+## not installed. Invoke this script from the repo root, or set the
+## SIM_DIR environment variable to override.
+SIM_DIR <- Sys.getenv("SIM_DIR", "")
+if (!nzchar(SIM_DIR)) {
+  SIM_DIR <- if (requireNamespace("here", quietly = TRUE)) {
+    here::here()
+  } else {
+    normalizePath(".", mustWork = TRUE)
+  }
+}
 TARGETS_STORE <- file.path(SIM_DIR, "_targets")
 OUT_PDF <- file.path(SIM_DIR, "figs", "fig2_conc_summary.pdf")
 

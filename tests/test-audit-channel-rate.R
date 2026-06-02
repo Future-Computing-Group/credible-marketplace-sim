@@ -9,7 +9,12 @@
 
 library(testthat)
 
-SIM_DIR <- "[REPO_ROOT]"
+## Locate the repo root portably (see test-expL3-bilinear-surface.R).
+SIM_DIR <- if (requireNamespace("here", quietly = TRUE)) {
+  here::here()
+} else {
+  normalizePath(".", mustWork = TRUE)
+}
 source(file.path(SIM_DIR, "R/sim_helpers.R"))
 source(file.path(SIM_DIR, "R/sim_credibility.R"))
 

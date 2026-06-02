@@ -8,12 +8,17 @@ library(testthat)
 
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
+## Locate the repo root portably (see test-expL3-bilinear-surface.R).
 .SIM_DIR <- normalizePath(
   file.path(dirname(sys.frame(1)$ofile %||% "."), ".."),
   mustWork = FALSE
 )
 if (!dir.exists(file.path(.SIM_DIR, "R"))) {
-  .SIM_DIR <- "[REPO_ROOT]"
+  .SIM_DIR <- if (requireNamespace("here", quietly = TRUE)) {
+    here::here()
+  } else {
+    normalizePath(".", mustWork = TRUE)
+  }
 }
 
 source(file.path(.SIM_DIR, "R", "sim_credibility.R"))

@@ -2,10 +2,17 @@
 
 library(testthat)
 
+## Locate the repo root portably. First try the test file's own
+## directory (`testthat::test_file` / `Rscript` set sys.frame(1)$ofile);
+## fall back to `here::here()` (rprojroot) or the current wd.
 .SIM_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile %||% "."), ".."),
                           mustWork = FALSE)
 if (!dir.exists(file.path(.SIM_DIR, "R"))) {
-  .SIM_DIR <- "[REPO_ROOT]"
+  .SIM_DIR <- if (requireNamespace("here", quietly = TRUE)) {
+    here::here()
+  } else {
+    normalizePath(".", mustWork = TRUE)
+  }
 }
 
 source(file.path(.SIM_DIR, "R", "sim_credibility.R"))

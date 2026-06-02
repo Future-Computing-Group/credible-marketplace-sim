@@ -9,7 +9,15 @@ suppressPackageStartupMessages({
   library(dplyr); library(tidyr); library(purrr); library(tibble)
 })
 
-SIM_DIR <- "[REPO_ROOT]"
+## Locate the repo root portably (see comment in run_expL2_stochastic.R).
+SIM_DIR <- Sys.getenv("SIM_DIR", "")
+if (!nzchar(SIM_DIR)) {
+  SIM_DIR <- if (requireNamespace("here", quietly = TRUE)) {
+    here::here()
+  } else {
+    normalizePath(".", mustWork = TRUE)
+  }
+}
 setwd(SIM_DIR)
 source("R/sim_credibility.R"); source("R/sim_helpers.R"); source("R/sim_operator.R")
 source("R/sim_market.R"); source("R/sim_integrator.R"); source("R/sim_expL3.R")
