@@ -1,23 +1,35 @@
 # credible-marketplace-sim
 
-Simulation study for the paper:
-**"From Credibility to Trust in Agentic Service Markets: Mechanism Design for Real-Time AI Economies"**
-Submitted to IEEE Transactions on Services Computing.
+Simulation study underlying two companion papers on credibility in
+polymatroidal service markets (Trilogy Paper 2, split into 2A + 2B):
+
+- **2A — "Credibility Trilemma in Polymatroidal Service Markets"**
+- **2B — "A Deployable Credibility Surface for Polymatroidal Service Markets"**
+
+Both are in preparation for ACM Transactions on Economics and Computation
+(TEAC). Released under the MIT licence; see `LICENSE` and `CITATION.cff`,
+and the Zenodo archive at https://doi.org/10.5281/zenodo.20394159.
 
 ## Overview
 
 This simulation studies the behaviour of strategic marketplace operators in
 real-time AI service economies and evaluates mechanisms for ensuring truthful
-mechanism execution. It complements the theoretical contributions of the paper
-(credibility trilemma, commitment-based credible mechanisms, domain separation,
-integrator competition) with a systematic ablation study across five credibility
-components: commitment devices (C), domain separation (D), integrator
-competition (K), two-tier architecture (T), and structural topology (S).
+mechanism execution. It complements the theoretical contributions of the two
+companion papers (the credibility trilemma and its three resolutions ---
+commitment-based credible mechanisms, domain separation, integrator competition
+--- in 2A; the deployable credibility surface, Smallest Detectable Stake
+theorem, and two-tier architecture in 2B) with a systematic ablation study
+across five credibility components: commitment devices (C), domain separation
+(D), integrator competition (K), two-tier architecture (T), and structural
+topology (S).
 
 ## Experiments
 
-The codebase uses letter codes (A-O). The manuscript uses sequential numbers
-(1-14) grouped by purpose. Combined figure files use letter codes
+The codebase uses letter codes (A-O). The "Manu." numbers (1-14) below refer to
+the original combined experiment programme, now distributed across the two
+companion papers (2A reports the trilemma-illustration experiments and a
+mechanism-class robustness ablation; 2B reports the eight-experiment
+deployable-surface programme). Combined figure files use letter codes
 (`expA_combined.pdf`, etc.).
 
 | Code | Manu. | Figure file | Group | Component(s) | What varies |

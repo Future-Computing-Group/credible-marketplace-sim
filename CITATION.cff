@@ -1,0 +1,77 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the accompanying papers."
+title: "Credible Marketplace Simulator: mechanism-design simulation for credibility in polymatroidal service markets (experiment harness)"
+authors:
+  - family-names: Lovén
+    given-names: Lauri
+    affiliation: "University of Oulu"
+  - family-names: Gujar
+    given-names: Sujit
+    affiliation: "International Institute of Information Technology"
+  - family-names: Timperi
+    given-names: Kalle
+    affiliation: "University of Oulu"
+  - family-names: Mehmood
+    given-names: Hassan
+    affiliation: "University of Oulu"
+  - family-names: Donta
+    given-names: Praveen Kumar
+    affiliation: "Stockholm University"
+  - family-names: Tarkoma
+    given-names: Sasu
+    affiliation: "University of Helsinki"
+  - family-names: Dustdar
+    given-names: Schahram
+    affiliation: "TU Wien"
+version: v1.0-teac-r1
+date-released: 2026-05-26
+license: MIT
+repository-code: "https://github.com/lloven/credible-marketplace-sim"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.20394159"
+    description: "Zenodo archive of this release (v1.0-teac-r1)."
+preferred-citation:
+  type: article
+  title: "Credibility Trilemma in Polymatroidal Service Markets"
+  authors:
+    - family-names: Lovén
+      given-names: Lauri
+    - family-names: Gujar
+      given-names: Sujit
+    - family-names: Timperi
+      given-names: Kalle
+    - family-names: Mehmood
+      given-names: Hassan
+    - family-names: Donta
+      given-names: Praveen Kumar
+    - family-names: Tarkoma
+      given-names: Sasu
+    - family-names: Dustdar
+      given-names: Schahram
+  year: 2026
+  identifiers:
+    - type: url
+      value: "https://arxiv.org/abs/2605.26604"
+      description: "arXiv preprint (Trilogy Paper 2A; cs.GT, posted 2026-05-26)."
+  notes: "Companion Paper 2A. Manuscript prepared for ACM Transactions on Economics and Computation (TEAC); on arXiv (2605.26604), not yet submitted."
+references:
+  - type: article
+    title: "A Deployable Credibility Surface for Polymatroidal Service Markets"
+    authors:
+      - family-names: Lovén
+        given-names: Lauri
+      - family-names: Gujar
+        given-names: Sujit
+      - family-names: Timperi
+        given-names: Kalle
+      - family-names: Mehmood
+        given-names: Hassan
+      - family-names: Donta
+        given-names: Praveen Kumar
+      - family-names: Tarkoma
+        given-names: Sasu
+      - family-names: Dustdar
+        given-names: Schahram
+    year: 2026
+    notes: "Companion Paper 2B. Manuscript prepared for ACM Transactions on Economics and Computation (TEAC); not yet submitted or posted to arXiv. Update this entry with the arXiv URL once the paper is deposited."
