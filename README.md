@@ -25,31 +25,45 @@ topology (S).
 
 ## Experiments
 
-The codebase uses letter codes (A-O). The "Manu." numbers (1-14) below refer to
-the original combined experiment programme, now distributed across the two
-companion papers (2A reports the trilemma-illustration experiments and a
-mechanism-class robustness ablation; 2B reports the eight-experiment
-deployable-surface programme). Combined figure files use letter codes
-(`expA_combined.pdf`, etc.).
+The codebase uses letter codes (A-O, plus R5 / L2 / L3). The **Paper**
+column maps each experiment to its reporting paper after the 2026-05-23
+2A/2B split:
 
-| Code | Manu. | Figure file | Group | Component(s) | What varies |
-|------|-------|-------------|-------|--------------|-------------|
-| **A** | 1 | `expA_combined.pdf` | Trilemma | Baseline | Operator strategy x topology x load |
-| **E** | 2 | `expE_combined.pdf` | Trilemma | +C | Credibility x topology x N (ghost bidder) |
-| **K** | 3 | `expK_combined.pdf` | Trilemma | +M (Myerson) | Mechanism x credibility x value dist |
-| **B** | 4 | `expB_combined.pdf` | Resolution | C comparison | Credibility x operator x topology x load |
-| **F** | 5 | `expF_combined.pdf` | Resolution | +D | Fee mode x operator x topology x load |
-| **C** | 6 | `expC_combined.pdf` | Resolution | +K | k integrators x strategy x topology x load |
-| **D** | 7 | `expD_combined.pdf` | Architecture | T (L1 x L2) | L1 trust x L2 trust x topology x N |
-| **J** | 8 | `expJ_combined.pdf` | Architecture | C x K | Credibility x k_integrators x topology |
-| **L** | 9 | `expL_combined.pdf` | Architecture | D knife-edge | Stake fraction x operator x topology |
-| **L2** | 9 (forward calibration) | `expL2_forward_calibration.pdf` | Architecture | D knife-edge + SDS forward calibration | Stake fraction x tau_audit x topology (regulatory_sds) |
-| **H** | 10 | `expH_combined.pdf` | Robustness | C (adaptive) | Credibility x topology x N (bandit operator) |
-| **I** | 11 | `expI_combined.pdf` | Robustness | C (degradation) | p_broadcast x topology (ghost bidder) |
-| **M** | 12 | `expM_combined.pdf` | Robustness | Agent exit | Credibility x agent_mode x topology |
-| **N** | 13 | `expN_combined.pdf` | Robustness | Markov channel | Channel model x p_stationary x topology |
-| **O** | 14 | `expO_combined.pdf` | Robustness | Non-stat. supply | Capacity model x credibility x topology |
-| **G** | Suppl. | --- | Supplement | Sensitivity | Parameter sweeps x topology |
+- **2A** (Credibility Trilemma) reports the trilemma-illustration experiments
+  (Exps.~1--3 in 2A's prose, code letters A / E / K) plus the mechanism-class
+  robustness ablation (code R5).
+- **2B** (Deployable Credibility Surface) reports the eight-experiment
+  deployable-surface programme: code letters B / F / C / D / J / L / L2 / L3.
+- **follow-up** marks experiments that were part of the original combined
+  Paper 2 plan but are not described in either 2A or 2B; they remain in the
+  repo for future work and are not cited from any current manuscript.
+- **suppl.** is the in-repo sensitivity supplement (Exp G), not paper-bound.
+
+The **Manu.** numbers (1-14) reflect the original combined experiment
+programme and are kept for codebase continuity; the **Paper** column is
+the authoritative manuscript-attribution. Combined figure files use
+letter codes (`expA_combined.pdf`, etc.).
+
+| Code | Paper | Manu. | Figure file | Group | Component(s) | What varies |
+|------|-------|-------|-------------|-------|--------------|-------------|
+| **A**  | 2A | 1 | `expA_combined.pdf` | Trilemma | Baseline | Operator strategy x topology x load |
+| **E**  | 2A | 2 | `expE_combined.pdf`, `fig2_conc_summary.pdf` | Trilemma | +C | Credibility x topology x N (ghost bidder) |
+| **K**  | 2A | 3 | `expK_combined.pdf` | Trilemma | +M (Myerson) | Mechanism x credibility x value dist |
+| **R5** | 2A | R-5 | `expR5_conc_by_mechanism.pdf`, `expR5_gamma_distribution.pdf` | Trilemma | Mechanism-class + CoNC^ag + gamma_ij | Mechanism x operator x topology x p_post |
+| **B**  | 2B | 4 | `expB_combined.pdf` | Resolution | C comparison | Credibility x operator x topology x load |
+| **F**  | 2B | 5 | `expF_combined.pdf` | Resolution | +D | Fee mode x operator x topology x load |
+| **C**  | 2B | 6 | `expC_combined.pdf` | Resolution | +K | k integrators x strategy x topology x load |
+| **D**  | 2B | 7 | `expD_combined.pdf` | Architecture | T (L1 x L2) | L1 trust x L2 trust x topology x N |
+| **J**  | 2B | 8 | `expJ_combined.pdf` | Architecture | C x K | Credibility x k_integrators x topology |
+| **L**  | 2B | 9 | `expL_combined.pdf` | Architecture | D knife-edge | Stake fraction x operator x topology |
+| **L2** | 2B | 9 (fwd-cal) | `expL2_forward_calibration.pdf` | Architecture | D knife-edge + SDS forward calibration | Stake fraction x tau_audit x topology (regulatory_sds) |
+| **L3** | 2B | (bilinear) | `expL3_bilinear_surface.pdf` | Architecture | Bilinear (1-eta)*lambda surface | eta x lambda x topology (regulatory_sds) |
+| **H**  | follow-up | 10 | `expH_combined.pdf` | Robustness | C (adaptive) | Credibility x topology x N (bandit operator) |
+| **I**  | follow-up | 11 | `expI_combined.pdf` | Robustness | C (degradation) | p_broadcast x topology (ghost bidder) |
+| **M**  | follow-up | 12 | `expM_combined.pdf` | Robustness | Agent exit | Credibility x agent_mode x topology |
+| **N**  | follow-up | 13 | `expN_combined.pdf` | Robustness | Markov channel | Channel model x p_stationary x topology |
+| **O**  | follow-up | 14 | `expO_combined.pdf` | Robustness | Non-stat. supply | Capacity model x credibility x topology |
+| **G**  | suppl. | Suppl. | --- | Supplement | Sensitivity | Parameter sweeps x topology |
 
 **Exp L2** is the forward-calibration extension of Exp L (manuscript Exp 9),
 addressing the TEAC Round-1 reviewer concern (RF2 / Issue 1) that the SDS
